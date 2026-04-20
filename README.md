@@ -4,15 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)]()
 
-**Electronics design, AI-enabled.**
+**Software engineers have Claude Code. Hardware engineers have been pasting netlists into chat.**
 
-Software engineers have tools like Claude Code that enable seamless access to their local files, their project, their context. Altium Copilot is an attempt to give hardware engineers something similar.
+> Read the full writeup → [maisamp.github.io](https://maisamp.github.io/posts/altium-copilot/)
 
 Altium Copilot gives Claude real-time read access to your open Altium project. Ask it about component values, trace a net across sheets, review your schematic, brainstorm a circuit — all from your Claude chat interface, grounded in your actual design files.
 
 For now, the copilot is read-only. It only extracts data. It cannot modify your schematic, move components, or overwrite your `.PrjPcb` file, **more features coming soon.**
 
-Part of the [ee-in-a-box](https://github.com/ee-in-a-box) suite. Getting started guide at [maisamp.github.io](https://maisamp.github.io/posts/altium-copilot/).
+Part of the [ee-in-a-box](https://github.com/ee-in-a-box) suite.
 
 ![Demo](assets/Intro.gif)
 
