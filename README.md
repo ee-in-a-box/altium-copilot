@@ -81,7 +81,7 @@ Once installed, open Claude and ask anything about your schematic — the copilo
 **Example prompts:**
 - *"What's connected to the 3.3V net?"*
 - *"What's U4 doing on this page?"*
-- *"What's different between the Standard and Low-Power variants?"*
+- *"What's different between my schematic variants?"*
 - *"How should i improve this circuit?"*
 - *"Is this power supply circuit correct?"* — triggers a structured design review automatically
 

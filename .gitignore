@@ -9,9 +9,8 @@ venv/
 # Vendored dependencies (populated by: pip install -t server/vendor -r requirements.txt)
 server/vendor/
 
-# MCPB output
+# Build output
 dist/
-*.mcpb
 
 # PyInstaller build artifacts
 build/

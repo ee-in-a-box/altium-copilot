@@ -88,14 +88,11 @@ takes effect immediately without any reinstallation step).
     --distpath server/dist `
     --workpath build `
     --add-data "server/scripts;scripts" `
-    --collect-all mcp `
     --paths server `
     server/main.py
-
-npx @anthropic-ai/mcpb pack
 ```
 
-Test the resulting `.mcpb` on a machine **without Python installed** before tagging.
+Test the resulting `server/dist/altium-copilot.exe` on a machine **without Python installed** before tagging.
 
 ## How the bundle works
 
@@ -122,8 +119,7 @@ server/
 tests/             — pytest suite
 ```
 
-## What gets bundled vs. what stays out
+## What gets shipped
 
-`.mcpbignore` excludes everything except `manifest.json`, `README.md`,
-and `server/dist/altium-copilot.exe`.
+The GitHub Release contains only `altium-copilot.exe` and `checksums.txt`.
 Python source, tests, docs, and the `.venv` are never shipped to end users.
