@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
+## [0.1.1] - 2026-04-20
+
+### Changed
+- Removed `.mcpb` packaging — installer downloads the `.exe` directly, no bundle needed
+- Simplified release workflow: dropped Node.js dependency and checksums generation
+
 ## [0.1.0] - 2026-04-19
 
 ### Added
