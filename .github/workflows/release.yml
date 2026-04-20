@@ -39,7 +39,9 @@ jobs:
 
       - name: Update manifest version
         shell: bash
-        run: sed -i "s/\"version\": \".*\"/\"version\": \"${{ steps.version.outputs.version }}\"/" manifest.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" manifest.json
 
       - name: Build binary
         run: |
