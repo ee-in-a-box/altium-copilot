@@ -108,6 +108,8 @@ Your data stays yours. The MCP server runs locally, doesn't log anything, and do
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+For bug reports and support, open an issue at [github.com/ee-in-a-box/altium-copilot/issues](https://github.com/ee-in-a-box/altium-copilot/issues).
+
 ---
 
 ## License
