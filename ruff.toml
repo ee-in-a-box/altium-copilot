@@ -1,0 +1,20 @@
+target-version = "py313"
+
+[lint]
+select = [
+    "F401",   # unused imports
+    "F841",   # unused variables
+    "W605",   # invalid escape sequence
+    "T201",   # print() statements
+    "B006",   # mutable default arguments
+    "B007",   # unused loop variable (use _ instead)
+    "S603",   # subprocess call without shell=True check
+    "S607",   # partial executable path in subprocess
+    "RUF100", # unused noqa directives
+]
+ignore = [
+    "E501",   # line too long — not enforced
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["T201", "S603", "S607"]  # allow print + subprocess in tests

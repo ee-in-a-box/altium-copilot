@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Vendored dependencies (populated by: pip install -t server/vendor -r requirements.txt)
+server/vendor/
+
+# MCPB output
+dist/
+*.mcpb
+
+# PyInstaller build artifacts
+build/
+*.spec
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Personal project notes
+docs/
+
+# Claude
+.claude/
+
+# Developement
+sample_netlist/

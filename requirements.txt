@@ -1,0 +1,15 @@
+# MCP server framework (official SDK — FastMCP class is included)
+mcp>=1.0.0
+
+# Altium .SchDoc parser — OLE2 compound document format
+olefile>=0.47
+
+# No other runtime dependencies — Altium interaction is done via PowerShell subprocesses.
+# All PowerShell scripts live in server/scripts/*.ps1
+
+# Dev
+# pip install pytest pytest-ruff ruff pre-commit
+
+# Build: compile to standalone binary (no Python needed for end users)
+# pip install pyinstaller
+# pyinstaller --onefile server/main.py --name altium-copilot

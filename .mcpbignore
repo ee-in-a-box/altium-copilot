@@ -1,0 +1,37 @@
+# Dev tooling
+.venv/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+build/
+
+# Python source — everything is compiled into server/dist/altium-copilot.exe
+server/*.py
+server/parsers/
+server/services/
+server/scripts/
+server/vendor/
+server/netlist_parser.py
+
+# Tests, docs, and samples
+tests/
+docs/
+sample_netlist/
+.claude/
+
+# Dev config
+.pre-commit-config.yaml
+pytest.ini
+ruff.toml
+conftest.py
+requirements.txt
+*.spec
+
+# Git and CI
+.git/
+.gitignore
+.github/
+
+# Previously built bundles
+*.mcpb

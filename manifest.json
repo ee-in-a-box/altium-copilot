@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "altium-copilot",
+  "display_name": "Altium Copilot",
+  "version": "0.3.23",
+  "description": "AI copilot for Altium Designer.",
+  "author": {
+    "name": "Maisam Pyarali"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/dist/altium-copilot.exe",
+    "mcp_config": {
+      "command": "${__dirname}/server/dist/altium-copilot.exe",
+      "args": []
+    }
+  },
+  "tools": [],
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["win32"]
+  }
+}

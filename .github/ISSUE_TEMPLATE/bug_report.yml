@@ -1,0 +1,37 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: input
+    id: altium_version
+    attributes:
+      label: Altium Designer version
+      placeholder: e.g. 24.0
+    validations:
+      required: true
+  - type: input
+    id: claude_version
+    attributes:
+      label: Claude Desktop version
+      placeholder: e.g. 0.10.0
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional)
+      description: "Paste from: `%APPDATA%\\Claude\\logs\\mcp-server-altium-copilot.log`"
+      render: text
