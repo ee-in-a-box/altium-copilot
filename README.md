@@ -1,6 +1,7 @@
 # Altium Copilot
 
 [![CI](https://github.com/ee-in-a-box/altium-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/ee-in-a-box/altium-copilot/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/github/downloads/ee-in-a-box/altium-copilot/total?color=brightgreen)](https://github.com/ee-in-a-box/altium-copilot/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)]()
 
