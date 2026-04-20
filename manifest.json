@@ -1,13 +1,20 @@
 {
-"manifest_version": "0.4",
+  "manifest_version": "0.4",
   "name": "altium-copilot",
   "display_name": "Altium Copilot",
   "version": "0.1.1",
-  "description": "AI copilot for Altium Designer.",
+  "description": "AI copilot for Altium Designer (Windows only). Reads live schematics from a running Altium instance — trace nets, inspect components, switch variants, and run structured design reviews, all from Claude. Requires Altium Designer installed and running on Windows.",
   "author": {
-    "name": "Maisam Pyarali"
+    "name": "Maisam Pyarali",
+    "url": "https://github.com/maisamp"
   },
   "license": "MIT",
+  "homepage": "https://github.com/ee-in-a-box/altium-copilot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ee-in-a-box/altium-copilot"
+  },
+  "icon": "assets/icon.png",
   "server": {
     "type": "binary",
     "entry_point": "server/dist/altium-copilot.exe",
@@ -16,7 +23,21 @@
       "args": []
     }
   },
-  "tools": [],
+  "tools": [
+    { "name": "detect_altium_project", "description": "Detect whether Altium Designer is running, which project is currently open, and list previously loaded projects from the local registry. Always call this first to orient Claude before loading a project." },
+    { "name": "set_project_dir", "description": "Load an Altium project from disk given its folder path. Parses the .PrjPcb file, reads all schematic sheets, and generates a Protel netlist by automating Altium's export. Required before calling any other tool. Altium Designer must be running with the target project open." },
+    { "name": "refresh_netlist", "description": "Regenerate the netlist after the user saves schematic changes in Altium. Only call when the user confirms they have saved — do not call speculatively." },
+    { "name": "query_net", "description": "Trace net connectivity. Returns every pin on the named net plus one-hop neighbors (pins of connected components that connect to other nets). Call repeatedly on neighbor nets to walk the circuit graph." },
+    { "name": "get_component", "description": "Get full detail for a component by reference designator (e.g. U1, R14). Returns the MPN, value, DNP status, and every pin with its connected net." },
+    { "name": "search_components", "description": "Search components using a regex pattern against refdes, MPN, or description. Results are grouped by MPN with per-group counts — useful for finding all instances of a part or all components matching a description." },
+    { "name": "search_nets", "description": "Search net names using a case-insensitive regex. Returns matching nets with their connected pins inline. Useful for finding power rails, signal groups, or bus members by name pattern." },
+    { "name": "get_sheet_context", "description": "Get all components on a schematic sheet with their pin-to-net connections and cross-sheet neighbors. Pass a sheet name or omit to use the currently active sheet in Altium." },
+    { "name": "list_variants", "description": "List all project variants and their DNP (Do Not Populate) component lists. Returns variant names and which components are excluded in each." },
+    { "name": "set_active_variant", "description": "Switch the active variant by name. DNP annotations update immediately and all subsequent tool calls reflect the new variant's populated/excluded components." },
+    { "name": "save_schematic_review", "description": "Save a schematic review report as a Markdown file to ~/.ee-in-a-box/schematic-reviews/. Writes to the user's local filesystem only — no data leaves the machine." },
+    { "name": "schematic_review", "description": "Start a structured 3-phase schematic review: power integrity, signal integrity, and BOM/variant sanity. Automatically triggered when the user asks Claude to review the schematic." },
+    { "name": "brainstorm_circuits", "description": "Start a structured 5-phase circuit brainstorming session: requirements, topology options, component selection, tradeoffs, and next steps. Automatically triggered when the user asks Claude to brainstorm a circuit." }
+  ],
   "compatibility": {
     "claude_desktop": ">=1.0.0",
     "platforms": ["win32"]

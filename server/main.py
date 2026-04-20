@@ -15,6 +15,7 @@ if os.path.exists(vendor_dir):
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 try:
     from altium import AltiumClient
@@ -297,7 +298,7 @@ def _detect_altium_project_impl(info: dict, registry: dict) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(title="Detect Altium Project", annotations=ToolAnnotations(readOnlyHint=True))
 def detect_altium_project() -> str:
     """Detect whether Altium Designer is running, which project is open, and known projects."""
     info = _altium.get_status()
@@ -315,7 +316,7 @@ def detect_altium_project() -> str:
 
 # ---------- set_project_dir ----------
 
-@mcp.tool()
+@mcp.tool(title="Load Project", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 def set_project_dir(project_dir: str) -> str:
     """Load an Altium project from disk. Must be called before any other tool.
     Parses the .PrjPcb and generates the netlist.
@@ -405,7 +406,7 @@ def set_project_dir(project_dir: str) -> str:
 
 # ---------- refresh_netlist ----------
 
-@mcp.tool()
+@mcp.tool(title="Refresh Netlist", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 def refresh_netlist() -> str:
     """Refresh the netlist after the user has saved schematic changes in Altium.
     Call this when the user says they changed, added, or saved anything in the schematic.
@@ -484,7 +485,7 @@ def _query_net_impl(netlist: dict, net_name: str) -> str:
     return json.dumps({"net": net_key, "pins": pins, "neighbors": neighbors}, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(title="Query Net", annotations=ToolAnnotations(readOnlyHint=True))
 def query_net(net_name: str) -> str:
     """Trace net connectivity. Returns all pins on the net and one-hop neighbors.
     Call repeatedly on neighbor nets to walk the circuit graph."""
@@ -518,7 +519,7 @@ def _get_component_impl(netlist: dict, variant_state: VariantState, refdes: str)
     }, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(title="Get Component", annotations=ToolAnnotations(readOnlyHint=True))
 def get_component(refdes: str) -> str:
     """Get full detail for one component: MPN, value, DNP status, and every pin with its net.
     Use this to drill into a specific component and trace its connections."""
@@ -591,7 +592,7 @@ def _search_components_impl(netlist: dict, pattern: str, search_by: str) -> str:
     }, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(title="Search Components", annotations=ToolAnnotations(readOnlyHint=True))
 def search_components(pattern: str, search_by: str = "description") -> str:
     """Search components by regex pattern. search_by: 'refdes', 'mpn', or 'description'.
     Returns components grouped by MPN with counts. Use get_component for full pin detail."""
@@ -627,7 +628,7 @@ def _search_nets_impl(netlist: dict, pattern: str) -> str:
     return json.dumps({"match_count": len(results), "nets": results}, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(title="Search Nets", annotations=ToolAnnotations(readOnlyHint=True))
 def search_nets(pattern: str) -> str:
     """Search net names by regex pattern (case-insensitive). Returns matching nets with
     their full pin lists inline. Use this to discover net names before calling query_net.
@@ -680,7 +681,7 @@ def _get_sheet_context_impl(project: dict, netlist: dict, variant_state: Variant
     return build_sheet_context(netlist, sheet_name, variant_state)
 
 
-@mcp.tool()
+@mcp.tool(title="Get Sheet Context", annotations=ToolAnnotations(readOnlyHint=True))
 def get_sheet_context(sheet_name: str | None = None) -> str:
     """Get all components on a schematic sheet with their pin-to-net connections.
     If sheet_name is None, reads the active Altium tab. Use this at the start of a
@@ -712,7 +713,7 @@ def _list_variants_impl(variant_state: VariantState) -> str:
     }, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(title="List Variants", annotations=ToolAnnotations(readOnlyHint=True))
 def list_variants() -> str:
     """List all project variants and their DNP component lists.
     Call this at session start so the user can choose which variant to work in."""
@@ -738,7 +739,7 @@ def _set_active_variant_impl(variant_state: VariantState, variant_name: str) -> 
         return json.dumps({"error": "variant_not_found", "message": str(e)})
 
 
-@mcp.tool()
+@mcp.tool(title="Set Active Variant", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 def set_active_variant(variant_name: str) -> str:
     """Switch the active variant. DNP annotations on get_component and get_sheet_context
     will reflect the new variant immediately."""
@@ -749,7 +750,7 @@ def set_active_variant(variant_name: str) -> str:
     return _set_active_variant_impl(variant_state, variant_name)
 
 
-@mcp.tool()
+@mcp.tool(title="Save Schematic Review", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 def save_schematic_review(filename: str, content: str) -> str:
     """Save a schematic review report to ~/.ee-in-a-box/schematic-reviews/.
     Only call this as the final step of a schematic review."""
@@ -768,7 +769,100 @@ def save_schematic_review(filename: str, content: str) -> str:
         return json.dumps({"error": str(e)})
 
 
-@mcp.tool()
+SCHEMATIC_REVIEW_PROMPT = """\
+Project: {name}
+Sheets: {sheets}
+Active variant: {active_variant}
+
+You are starting a structured schematic review. Ask the user to choose
+a scope before doing anything:
+  - A specific sheet (e.g. "{first_sheet}")
+  - The full project ({n} sheets, one at a time)
+
+Do not proceed until the user answers.
+
+---
+
+### Phase 1 — Understand Before You Judge
+
+Call get_sheet_context. Each pin already includes connected_to —
+the full cross-sheet neighbor list. Use this to trace every signal
+source-to-destination. Call query_net only if you need to go two hops deep on a specific net.
+
+For each IC that has external components influencing its operating
+behavior, look up its manufacturer datasheet and confirm the parameters
+those components set. The datasheet application circuit will tell you
+which ones matter.
+
+If you cannot find a datasheet for an IC, say so before proceeding —
+do not assume pin functions or parameter values.
+
+Then state explicitly:
+  - What you believe this circuit does
+  - What each key IC's operating parameters are, sourced from its datasheet
+  - Anything you cannot determine from the netlist or datasheets —
+    name it, ask about it
+
+Done when: the user has confirmed or corrected your understanding.
+Do not proceed to Phase 2 until then.
+
+---
+
+### Phase 2 — Audit (Evidenced Issues Only)
+
+Assume the designer made mistakes. Your job is to find them.
+
+Ground truth rule: the manufacturer datasheet overrides everything —
+Altium pin names, net labels, user descriptions. Every finding must
+trace to a datasheet value or a measurable netlist fact.
+Report only what you can evidence. Do not speculate.
+
+At minimum, check:
+1. Pin assignments — does each IC pin connect to what the datasheet
+   application circuit requires?
+2. Passive values — do component values produce correct operating
+   parameters per datasheet formulas?
+3. Signal continuity — use connected_to on each critical pin to trace
+   source-to-destination; verify correct termination and that every
+   expected endpoint appears
+4. Cross-sheet nets — use search_nets with broad patterns to enumerate
+   all cross-sheet references; flag dangling or unexpected appearances
+5. Failure modes — for each sub-circuit: what happens if inputs are out
+   of range, or a passive is off by 10%?
+
+For circuit types that require it, apply first principles beyond this
+list. The topology determines what matters.
+
+Done when: you have worked through the checklist and any additional
+checks the circuit demands. Do not proceed to Phase 3 until then.
+
+---
+
+### Phase 3 — Document
+
+Present findings as three Markdown tables:
+
+  Table 1 — Critical Issues
+  | Component | Issue | Datasheet Requires | Schematic Shows |
+
+  Table 2 — Warnings & Nitpicks
+  | Component | Observation |
+
+  Table 3 — Verified Critical Nets
+  | Net | Source → Destination | Result |
+
+Call save_schematic_review:
+  filename: {name}_YYYY-MM-DD_review
+  content: full Markdown — date, project name, scope, variant,
+           all three tables
+
+Tell the user the saved path.
+Ask: "Any sub-circuits to dive deeper into, or alternative
+architectures to brainstorm?"
+"""
+
+
+@mcp.tool(title="Schematic Review", annotations=ToolAnnotations(readOnlyHint=True))
 def schematic_review() -> str:
     """Start a structured schematic review. Call when the user explicitly asks to review
     or verify the schematic (e.g. 'review this', 'check my schematic', 'do a design review',
@@ -788,97 +882,14 @@ def schematic_review() -> str:
     n = len(sheets)
     name = _project["name"]
 
-    return (
-        f"Project: {name}\n"
-        f"Sheets: {', '.join(sheets)}\n"
-        f"Active variant: {active_variant}\n"
-        "\n"
-        "You are starting a structured schematic review. Ask the user to choose\n"
-        "a scope before doing anything:\n"
-        f'  - A specific sheet (e.g. "{first_sheet}")\n'
-        f"  - The full project ({n} sheets, one at a time)\n"
-        "\n"
-        "Do not proceed until the user answers.\n"
-        "\n"
-        "---\n"
-        "\n"
-        "### Phase 1 — Understand Before You Judge\n"
-        "\n"
-        "Call get_sheet_context. Each pin already includes connected_to —\n"
-        "the full cross-sheet neighbor list. Use this to trace every signal\n"
-        "source-to-destination. Call query_net only if you need to go two hops deep on a specific net.\n"
-        "\n"
-        "For each IC that has external components influencing its operating\n"
-        "behavior, look up its manufacturer datasheet and confirm the parameters\n"
-        "those components set. The datasheet application circuit will tell you\n"
-        "which ones matter.\n"
-        "\n"
-        "If you cannot find a datasheet for an IC, say so before proceeding —\n"
-        "do not assume pin functions or parameter values.\n"
-        "\n"
-        "Then state explicitly:\n"
-        "  - What you believe this circuit does\n"
-        "  - What each key IC's operating parameters are, sourced from its datasheet\n"
-        "  - Anything you cannot determine from the netlist or datasheets —\n"
-        "    name it, ask about it\n"
-        "\n"
-        "Done when: the user has confirmed or corrected your understanding.\n"
-        "Do not proceed to Phase 2 until then.\n"
-        "\n"
-        "---\n"
-        "\n"
-        "### Phase 2 — Audit (Evidenced Issues Only)\n"
-        "\n"
-        "Assume the designer made mistakes. Your job is to find them.\n"
-        "\n"
-        "Ground truth rule: the manufacturer datasheet overrides everything —\n"
-        "Altium pin names, net labels, user descriptions. Every finding must\n"
-        "trace to a datasheet value or a measurable netlist fact.\n"
-        "Report only what you can evidence. Do not speculate.\n"
-        "\n"
-        "At minimum, check:\n"
-        "1. Pin assignments — does each IC pin connect to what the datasheet\n"
-        "   application circuit requires?\n"
-        "2. Passive values — do component values produce correct operating\n"
-        "   parameters per datasheet formulas?\n"
-        "3. Signal continuity — use connected_to on each critical pin to trace\n"
-        "   source-to-destination; verify correct termination and that every\n"
-        "   expected endpoint appears\n"
-        "4. Cross-sheet nets — use search_nets with broad patterns to enumerate\n"
-        "   all cross-sheet references; flag dangling or unexpected appearances\n"
-        "5. Failure modes — for each sub-circuit: what happens if inputs are out\n"
-        "   of range, or a passive is off by 10%?\n"
-        "\n"
-        "For circuit types that require it, apply first principles beyond this\n"
-        "list. The topology determines what matters.\n"
-        "\n"
-        "Done when: you have worked through the checklist and any additional\n"
-        "checks the circuit demands. Do not proceed to Phase 3 until then.\n"
-        "\n"
-        "---\n"
-        "\n"
-        "### Phase 3 — Document\n"
-        "\n"
-        "Present findings as three Markdown tables:\n"
-        "\n"
-        "  Table 1 — Critical Issues\n"
-        "  | Component | Issue | Datasheet Requires | Schematic Shows |\n"
-        "\n"
-        "  Table 2 — Warnings & Nitpicks\n"
-        "  | Component | Observation |\n"
-        "\n"
-        "  Table 3 — Verified Critical Nets\n"
-        "  | Net | Source → Destination | Result |\n"
-        "\n"
-        f"Call save_schematic_review:\n"
-        f"  filename: {name}_YYYY-MM-DD_review\n"
-        "  content: full Markdown — date, project name, scope, variant,\n"
-        "           all three tables\n"
-        "\n"
-        "Tell the user the saved path.\n"
-        'Ask: "Any sub-circuits to dive deeper into, or alternative\n'
-        'architectures to brainstorm?"\n'
+    return SCHEMATIC_REVIEW_PROMPT.format(
+        name=name,
+        sheets=", ".join(sheets),
+        active_variant=active_variant,
+        first_sheet=first_sheet,
+        n=n,
     )
+
 
 
 BRAINSTORM_CIRCUITS_PROMPT = """\
@@ -957,7 +968,7 @@ Do not suggest implementation steps or specific part numbers until the user appr
 """
 
 
-@mcp.tool()
+@mcp.tool(title="Brainstorm Circuits", annotations=ToolAnnotations(readOnlyHint=True))
 def brainstorm_circuits() -> str:
     """Start a structured circuit brainstorming session. Call when the user wants to
     brainstorm a new circuit, design a sub-circuit, or explore how to improve part of
