@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
+## [0.1.2] - 2026-04-20
+
+### Changed
+- Added `title` and `readOnlyHint`/`destructiveHint` annotations to all 13 tools — Claude Desktop now surfaces correct read/write intent for each tool call
+- Schematic review prompt refactored to a template string — same review behavior, cleaner internals
+- `manifest.json`: richer description, author GitHub URL, repository metadata, otter icon
+
+### Added
+- `assets/icon.png` — otter icon displayed in Claude Desktop Extensions UI when installed via `.mcpb`
+
+---
+
 ## [0.1.1] - 2026-04-20
 
 ### Changed
