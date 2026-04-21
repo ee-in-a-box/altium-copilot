@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
+## [0.1.4] - 2026-04-20
+
+### Changed
+- `brainstorm_circuits` trigger broadened — now fires on any question about topology, architecture, or how to design/improve a sub-circuit, not just when the user says "brainstorm"
+- `brainstorm_circuits` docstring updated to match
+
+---
+
 ## [0.1.3] - 2026-04-20
 
 ### Changed

@@ -218,7 +218,7 @@ Call set_project_dir with the new path, then repeat the session-start steps.
   a sample and a warning — treat these as rails, not signals.
 - schematic_review — call when the user explicitly asks to review or verify the schematic (e.g. "review this", "check my schematic", "do a design review", "is this correct?", "does this look right?"). Do not call for general questions about the circuit.
 - save_schematic_review — only call this as the final step of a schematic review to persist the report.
-- brainstorm_circuits — call when the user wants to brainstorm a new circuit, design a sub-circuit, or explore how to improve part of the existing design. Do not call for general questions or reviews.
+- brainstorm_circuits — call when the user wants to brainstorm, or is asking how to design, improve, or choose an approach for a circuit. Any question about topology, architecture, or how to add/change a sub-circuit should trigger this. Do not call for general questions or reviews.
 - When the user says they have changed or saved anything in the schematic, call `refresh_netlist`
   before answering questions about the updated design. Do not call it speculatively — only after
   the user confirms they have saved in Altium (Ctrl+S).
@@ -989,9 +989,9 @@ Do not suggest implementation steps or specific part numbers until the user appr
 
 @mcp.tool(title="Brainstorm Circuits", annotations=ToolAnnotations(readOnlyHint=True))
 def brainstorm_circuits() -> str:
-    """Start a structured circuit brainstorming session. Call when the user wants to
-    brainstorm a new circuit, design a sub-circuit, or explore how to improve part of
-    the existing design. Works with or without a loaded project."""
+    """Start a structured circuit brainstorming session. Call when the user is asking
+    how to design, improve, or choose an approach for a circuit — not just when they
+    say "brainstorm". Works with or without a loaded project."""
     return BRAINSTORM_CIRCUITS_PROMPT
 
 
