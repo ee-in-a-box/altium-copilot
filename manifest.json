@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "altium-copilot",
   "display_name": "Altium Copilot",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "AI copilot for Altium Designer (Windows only). Reads live schematics from a running Altium instance — trace nets, inspect components, switch variants, and run structured design reviews, all from Claude. Requires Altium Designer installed and running on Windows.",
   "author": {
     "name": "Maisam Pyarali",

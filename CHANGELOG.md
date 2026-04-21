@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
+## [0.1.3] - 2026-04-20
+
+### Changed
+- `get_sheet_context` is now the primary tool for all circuit questions, not just design reviews — server instructions guide Claude to start every question with a single bulk sheet load before falling back to `query_net` or `get_component`
+- Cross-sheet tracing now uses `get_sheet_context(sheet_name=X)` instead of calling `get_component` one-by-one for each cross-sheet neighbor — significantly faster on dense, multi-sheet designs
+- `get_sheet_context` docstring updated to make the cross-sheet and general Q&A use cases explicit
+
+---
+
 ## [0.1.2] - 2026-04-20
 
 ### Changed

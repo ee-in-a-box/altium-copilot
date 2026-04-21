@@ -7,7 +7,7 @@ Submission form: claude.com/docs/connectors/building/submission → "Desktop ext
 ## Server Basics
 
 **Name:** Altium Copilot
-**Version:** 0.1.1
+**Version:** 0.1.3
 **Description:** AI copilot for Altium Designer (Windows only). Reads live schematics from a running Altium instance — trace nets, inspect components, switch variants, and run structured design reviews, all from Claude. Requires Altium Designer installed and running on Windows.
 **Author:** Maisam Pyarali
 **Homepage / Repo:** https://github.com/ee-in-a-box/altium-copilot

@@ -223,9 +223,27 @@ Call set_project_dir with the new path, then repeat the session-start steps.
   before answering questions about the updated design. Do not call it speculatively — only after
   the user confirms they have saved in Altium (Ctrl+S).
 
+## Answering Circuit Questions
+
+When the user asks about a component, net, or sub-circuit on a specific sheet:
+
+1. **Start with get_sheet_context** — one call returns every component on the sheet with
+   full pin-to-net data and one-hop cross-sheet neighbors (connected_to). This is almost
+   always sufficient to answer the question.
+2. **For cross-sheet tracing** — `connected_to` already gives you one hop for free
+   (refdes, pin, and sheet name). When you need to follow a signal onto a different
+   sheet, call get_sheet_context(sheet_name="SHEET") for that sheet — do NOT call
+   get_component for each cross-sheet component one-by-one.
+3. **For deeper tracing only** — call query_net or get_component when you need to go two
+   hops deep on a specific net, or the net is high-fanout (>25 pins).
+
+Do not call get_component or query_net individually for components already visible in a
+sheet context you have already loaded.
+Do not call get_sheet_context on the same sheet twice in the same conversation turn.
+
 ## Behavioral Guidelines
 
-- **Think Before Proposing:** State your assumptions explicitly. If multiple interpretations of the circuit exist, present them—don't pick silently. 
+- **Think Before Proposing:** State your assumptions explicitly. If multiple interpretations of the circuit exist, present them—don't pick silently.
 - **Simplicity First:** When suggesting fixes, propose the minimum viable component change. Do not suggest speculative features or over-engineered architectures.
 - **Surgical Changes:** Recommend touching only what must be fixed. Do not propose refactoring adjacent, working sub-circuits or nets unless they are directly causing the issue.
 - **Goal-Driven Execution:** For complex tracing or multi-step analysis, state a brief plan (e.g., "1. Trace VCC -> verify. 2. Check IC21 inputs -> verify") and loop your tool usage until your success criteria are verified.
@@ -683,10 +701,11 @@ def _get_sheet_context_impl(project: dict, netlist: dict, variant_state: Variant
 
 @mcp.tool(title="Get Sheet Context", annotations=ToolAnnotations(readOnlyHint=True))
 def get_sheet_context(sheet_name: str | None = None) -> str:
-    """Get all components on a schematic sheet with their pin-to-net connections.
-    If sheet_name is None, reads the active Altium tab. Use this at the start of a
-    design review to ingest the full sheet in one call — no need to call get_component
-    for each component individually. Use query_net to trace high-fanout nets further."""
+    """Get all components on a schematic sheet with their pin-to-net connections and
+    one-hop cross-sheet neighbors. Pass sheet_name to load any sheet by name — not just
+    the active Altium tab. Use this as the FIRST tool for any question about a sheet, and
+    again with sheet_name when following cross-sheet signals. Only call query_net or
+    get_component afterward for high-fanout nets (>25 pins) or two-hop tracing."""
     try:
         project, netlist, variant_state = _require_project()
     except ValueError as e:
