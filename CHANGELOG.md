@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
+## [0.1.5] - 2026-04-22
+
+### Fixed
+- Netlist keystroke reliability on slow machines: increased inter-keystroke delay from 1ms to 10ms, added 1s settle wait after Altium gains focus before sending the first key (prevents dropped Alt+D on slower PCs)
+- Added ESC after netlist generation (with 1s delay) to dismiss any lingering Altium dialog
+- Clear error when a non-schematic tab is active (homepage, Extensions and Updates, etc.) — instead of timing out with a confusing "check Altium is responsive" message, Claude now tells you to click on a schematic sheet tab
+
+### Removed
+- `save_schematic_review` tool — unnecessary overhead; ask Claude to write the review directly if you want it saved
+
+### Internal
+- Scoped pytest to `tests/` directory to prevent vendor directory crash on collection
+
+---
+
 ## [0.1.4] - 2026-04-20
 
 ### Changed
