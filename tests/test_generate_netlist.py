@@ -124,7 +124,7 @@ def test_generate_netlist_regenerates_when_schdoc_is_newer(tmp_path):
 
     with patch("server.altium._run_ps", side_effect=fake_run_ps) as mock_ps:
         result = client.generate_netlist(project_path)
-        mock_ps.assert_called_once_with("generate_protel_netlist.ps1", Delay="1")  # PowerShell MUST run
+        mock_ps.assert_called_once_with("generate_protel_netlist.ps1", Delay="10")  # PowerShell MUST run
 
     assert "NEW_NET" in client._netlist["nets"]
     assert result is True  # NEW
