@@ -236,7 +236,7 @@ class AltiumClient:
 
         for attempt in range(1, max_attempts + 1):
             logging.info("Generating netlist (attempt %d/%d)", attempt, max_attempts)
-            _run_ps("generate_protel_netlist.ps1", Delay="1")
+            _run_ps("generate_protel_netlist.ps1", Delay="10")
 
             start_time = time.time()
             while time.time() - start_time < per_attempt_timeout:

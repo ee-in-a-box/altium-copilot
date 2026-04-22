@@ -79,6 +79,10 @@ if (-not $focused) {
     exit 1
 }
 
+# Extra settle time — focus is confirmed but Altium's input queue may not be ready yet.
+# Without this, Alt+D can be dropped during the focus transition on slower machines.
+Start-Sleep -Milliseconds 1000
+
 function Send-KeyIfFocused($key) {
     if (-not [AltiumNetlistGenerator]::IsAltiumForeground()) {
         @{ success = $false; error = "Altium lost focus mid-sequence. Another window stole focus." } |
@@ -89,11 +93,13 @@ function Send-KeyIfFocused($key) {
     Start-Sleep -Milliseconds $Delay
 }
 
-# Design > Netlist > Protel > Enter
+# Design > Netlist > Protel > Enter, then Escape to dismiss any lingering dialog
 Send-KeyIfFocused "%d"
 Send-KeyIfFocused "n"
 Send-KeyIfFocused "r"
 Send-KeyIfFocused "p"
 Send-KeyIfFocused "{ENTER}"
+Start-Sleep -Milliseconds 1000
+Send-KeyIfFocused "{ESC}"
 
 @{ success = $true } | ConvertTo-Json -Compress | Write-Output
