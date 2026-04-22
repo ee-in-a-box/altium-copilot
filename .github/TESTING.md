@@ -78,15 +78,10 @@ Expected: Claude calls `brainstorm_circuits` and begins a structured 5-phase ses
 
 Expected: Claude calls `refresh_netlist` and confirms the netlist was regenerated.
 
-### 13. Save review
-> (After a review) "Save this review as power-review.md"
-
-Expected: Claude calls `save_schematic_review` and confirms the file was written to ~/.ee-in-a-box/schematic-reviews/.
-
 ## What to verify
 
 - No permission prompts beyond what is described above appear during install
-- All 13 tool calls succeed without errors
+- All 12 tool calls succeed without errors
 - The extension does not request network access (all data stays local)
 - Review files appear in `%USERPROFILE%\.ee-in-a-box\schematic-reviews\`
 

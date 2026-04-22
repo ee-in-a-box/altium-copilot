@@ -66,21 +66,3 @@ def test_schematic_review_contains_all_phases(fake_project):
     assert "Phase 3" in result
 
 
-def test_schematic_review_references_save_tool(fake_project):
-    """Happy path: Phase 3 references save_schematic_review."""
-    import server.main as main_mod
-    result = main_mod.schematic_review()
-    assert "save_schematic_review" in result
-
-
-def test_save_schematic_review(tmp_path, monkeypatch):
-    """save_schematic_review writes a .md file and returns the path."""
-    import server.main as main_mod
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    result_json = main_mod.save_schematic_review("my_review", "# Content")
-    import json
-    result = json.loads(result_json)
-    assert result["saved"] is True
-    assert result["path"].endswith("my_review.md")
-    from pathlib import Path
-    assert Path(result["path"]).read_text() == "# Content"

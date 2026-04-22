@@ -217,7 +217,6 @@ Call set_project_dir with the new path, then repeat the session-start steps.
 - Nets with many connections (>25 pins) are likely power or ground rails. query_net will return
   a sample and a warning — treat these as rails, not signals.
 - schematic_review — call when the user explicitly asks to review or verify the schematic (e.g. "review this", "check my schematic", "do a design review", "is this correct?", "does this look right?"). Do not call for general questions about the circuit.
-- save_schematic_review — only call this as the final step of a schematic review to persist the report.
 - brainstorm_circuits — call when the user wants to brainstorm, or is asking how to design, improve, or choose an approach for a circuit. Any question about topology, architecture, or how to add/change a sub-circuit should trigger this. Do not call for general questions or reviews.
 - When the user says they have changed or saved anything in the schematic, call `refresh_netlist`
   before answering questions about the updated design. Do not call it speculatively — only after
@@ -778,24 +777,6 @@ def set_active_variant(variant_name: str) -> str:
     return _set_active_variant_impl(variant_state, variant_name)
 
 
-@mcp.tool(title="Save Schematic Review", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
-def save_schematic_review(filename: str, content: str) -> str:
-    """Save a schematic review report to ~/.ee-in-a-box/schematic-reviews/.
-    Only call this as the final step of a schematic review."""
-    try:
-        reviews_dir = Path(
-            os.environ.get("USERPROFILE") or str(Path.home())
-        ) / ".ee-in-a-box" / "schematic-reviews"
-        reviews_dir.mkdir(parents=True, exist_ok=True)
-        safe_name = re.sub(r"[^\w\-_.]", "_", filename)
-        if not safe_name.endswith(".md"):
-            safe_name += ".md"
-        out_path = reviews_dir / safe_name
-        out_path.write_text(content, encoding="utf-8")
-        return json.dumps({"saved": True, "path": str(out_path)})
-    except Exception as e:
-        return json.dumps({"error": str(e)})
-
 
 SCHEMATIC_REVIEW_PROMPT = """\
 Project: {name}
@@ -879,12 +860,6 @@ Present findings as three Markdown tables:
   Table 3 — Verified Critical Nets
   | Net | Source → Destination | Result |
 
-Call save_schematic_review:
-  filename: {name}_YYYY-MM-DD_review
-  content: full Markdown — date, project name, scope, variant,
-           all three tables
-
-Tell the user the saved path.
 Ask: "Any sub-circuits to dive deeper into, or alternative
 architectures to brainstorm?"
 """

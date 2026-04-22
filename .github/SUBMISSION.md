@@ -40,7 +40,6 @@ Submission form: claude.com/docs/connectors/building/submission → "Desktop ext
 | `get_sheet_context` | Yes | All components and connections on a schematic sheet |
 | `list_variants` | Yes | All project variants and their DNP component lists |
 | `set_active_variant` | No* | Switch active variant; updates DNP state in memory |
-| `save_schematic_review` | No | Write review report to `~/.ee-in-a-box/schematic-reviews/` |
 | `schematic_review` | Yes | Trigger structured 3-phase schematic review workflow |
 | `brainstorm_circuits` | Yes | Trigger structured 5-phase circuit brainstorming workflow |
 

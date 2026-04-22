@@ -34,8 +34,7 @@
     { "name": "get_sheet_context", "description": "Get all components on a schematic sheet with their pin-to-net connections and cross-sheet neighbors. Pass a sheet name or omit to use the currently active sheet in Altium." },
     { "name": "list_variants", "description": "List all project variants and their DNP (Do Not Populate) component lists. Returns variant names and which components are excluded in each." },
     { "name": "set_active_variant", "description": "Switch the active variant by name. DNP annotations update immediately and all subsequent tool calls reflect the new variant's populated/excluded components." },
-    { "name": "save_schematic_review", "description": "Save a schematic review report as a Markdown file to ~/.ee-in-a-box/schematic-reviews/. Writes to the user's local filesystem only — no data leaves the machine." },
-    { "name": "schematic_review", "description": "Start a structured 3-phase schematic review: power integrity, signal integrity, and BOM/variant sanity. Automatically triggered when the user asks Claude to review the schematic." },
+{ "name": "schematic_review", "description": "Start a structured 3-phase schematic review: power integrity, signal integrity, and BOM/variant sanity. Automatically triggered when the user asks Claude to review the schematic." },
     { "name": "brainstorm_circuits", "description": "Start a structured 5-phase circuit brainstorming session: requirements, topology options, component selection, tradeoffs, and next steps. Automatically triggered when the user asks Claude to brainstorm a circuit." }
   ],
   "compatibility": {
