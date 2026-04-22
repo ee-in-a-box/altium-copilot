@@ -355,6 +355,15 @@ def set_project_dir(project_dir: str) -> str:
                 "Open a schematic sheet in Altium, then try again."
             ),
         })
+    if status.get("tab_type") == "other":
+        active_tab = status.get("active_tab") or "unknown"
+        return json.dumps({
+            "error": "no_schematic_active",
+            "message": (
+                f"Altium is showing '{active_tab}', not a schematic sheet. "
+                "Please click on a schematic sheet tab in Altium and try again."
+            ),
+        })
 
     prj_files = list(Path(project_dir).glob("*.PrjPcb")) + list(Path(project_dir).glob("*.prjpcb"))
     if not prj_files:
