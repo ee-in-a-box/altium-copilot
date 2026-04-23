@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -994,5 +995,16 @@ if __name__ == "__main__":
     if "--update" in sys.argv:
         _cmd_update()
         sys.exit(0)
-    _check_for_update(_read_version())
-    mcp.run()
+    threading.Thread(target=_check_for_update, args=(_read_version(),), daemon=True).start()
+    try:
+        mcp.run()
+    finally:
+        # After the MCP stdio transport closes, Python's exit sequence tries to
+        # flush sys.stdout, which is now a closed pipe → ValueError.  Redirect to
+        # devnull so the process exits cleanly and Claude Desktop doesn't see a
+        # crashed server on next load.
+        try:
+            sys.stdout = open(os.devnull, "w")
+            sys.stderr = open(os.devnull, "w")
+        except Exception:
+            pass
