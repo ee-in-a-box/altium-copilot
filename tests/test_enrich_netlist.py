@@ -167,3 +167,40 @@ def test_suffix_hyphen_letter():
     enrich_netlist(netlist, {"C1": _meta("C1")})
     assert "C1-A" in netlist["components"]
     assert "C1-B" in netlist["components"]
+
+
+# ---------- numeric-only suffix (mandatory separator) ----------
+
+def test_suffix_numeric_with_separator():
+    """C1_11 — separator + digits only."""
+    netlist = _netlist("C1_11", "C1_2")
+    enrich_netlist(netlist, {"C1": _meta("C1")})
+    assert "C1_11" in netlist["components"]
+    assert "C1_2" in netlist["components"]
+
+
+def test_suffix_numeric_no_separator_rejected():
+    """C111 — digits only with no separator must NOT match C1."""
+    netlist = _netlist("C111")
+    enrich_netlist(netlist, {"C1": _meta("C1"), "C111": _meta("C111")})
+    assert netlist["components"]["C1"]["pins"] == {}
+    assert netlist["components"]["C111"]["pins"]["1"]["net"] == "NET"
+
+
+# ---------- chained segments ----------
+
+def test_suffix_chained_segments():
+    """C1_1_E1 — two suffix segments chained."""
+    netlist = _netlist("C1_1_E1")
+    enrich_netlist(netlist, {"C1": _meta("C1")})
+    assert "C1_1_E1" in netlist["components"]
+
+
+# ---------- C10 not stolen by C1 with new pattern ----------
+
+def test_c10_suffix_numeric_not_stolen_by_c1():
+    """C10_11 should match C10, not C1."""
+    netlist = _netlist("C10_11")
+    enrich_netlist(netlist, {"C1": _meta("C1"), "C10": _meta("C10")})
+    assert "C10_11" in netlist["components"]
+    assert netlist["components"]["C1"]["pins"] == {}
