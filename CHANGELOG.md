@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 
+## [0.1.6] - 2026-04-22
+
+### Fixed
+- MCP server initialization timeout on cold starts: update check now runs on a background thread so `mcp.run()` starts immediately instead of blocking on a GitHub HTTP call
+- Subsheet fan-out pin enrichment: refdes suffix matching now handles all separator styles (`_`, `.`, `-`, none), any case, multi-letter suffixes, and trailing digits — covering `C1_A`, `C1.A`, `C1-A`, `C1_A1`, `C1_AA`, `C1_conv1` etc. Previously only `C1A` (single uppercase letter, no separator) worked
+
+---
+
 ## [0.1.5] - 2026-04-22
 
 ### Fixed
