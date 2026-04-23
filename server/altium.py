@@ -49,7 +49,7 @@ def enrich_netlist(netlist: dict, components: dict[str, "ComponentMeta"],
             continue
 
         # Subsheet fan-out: look for refdesA, refdesB, ... in pin_to_net
-        suffixed = [r for r in pin_to_net if re.fullmatch(rf"{re.escape(refdes)}[A-Z]", r)]
+        suffixed = [r for r in pin_to_net if re.fullmatch(rf"{re.escape(refdes)}[_.\-]?[A-Za-z]+\d*", r)]
         if suffixed:
             for suffixed_ref in suffixed:
                 entry = _make_enriched(meta, pin_to_net[suffixed_ref])
