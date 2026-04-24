@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.1.10] - 2026-04-23
+
+### Internal
+- Release workflow now runs lint and tests before building — a failing test blocks the release
+
+---
+
 ## [0.1.9] - 2026-04-23
 
 ### Fixed
