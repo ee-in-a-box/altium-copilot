@@ -94,8 +94,8 @@ if (-not $focused) {
     exit 1
 }
 
-# Settle time after confirmed focus — Altium's input queue may not be ready yet.
-Start-Sleep -Milliseconds 500
+# Settle time after confirmed focus — give Altium time to finish any in-progress rendering.
+Start-Sleep -Milliseconds 2000
 
 function Send-KeyIfFocused($key) {
     if (-not [AltiumNetlistGenerator]::IsAltiumForeground()) {
@@ -107,7 +107,11 @@ function Send-KeyIfFocused($key) {
     Start-Sleep -Milliseconds $Delay
 }
 
-# Design > Netlist > Protel > Enter, then Escape to dismiss any lingering dialog
+# ESC first to clear any residual menu state from a previous attempt
+Send-KeyIfFocused "{ESC}"
+Start-Sleep -Milliseconds 200
+
+# Design > Netlist > Protel > Enter, then ESC to dismiss any lingering dialog
 Send-KeyIfFocused "%d"
 Send-KeyIfFocused "n"
 Send-KeyIfFocused "r"
