@@ -23,9 +23,13 @@ public class AltiumNetlistGenerator {
     [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     public static bool IsAltiumForeground() {
@@ -50,12 +54,23 @@ public class AltiumNetlistGenerator {
 
         if (_hwnd == IntPtr.Zero) return false;
 
-        // Only restore if minimized — otherwise bring to front without resizing
         if (IsIconic(_hwnd))
             ShowWindow(_hwnd, 9); // SW_RESTORE
         else
             ShowWindow(_hwnd, 5); // SW_SHOW
+
+        // AttachThreadInput trick: share the input queue so SetForegroundWindow
+        // actually works even when this process doesn't own the foreground.
+        uint altiumPid;
+        uint altiumThread = GetWindowThreadProcessId(_hwnd, out altiumPid);
+        uint currentThread = GetCurrentThreadId();
+        bool attached = altiumThread != currentThread &&
+                        AttachThreadInput(currentThread, altiumThread, true);
         SetForegroundWindow(_hwnd);
+        BringWindowToTop(_hwnd);
+        if (attached)
+            AttachThreadInput(currentThread, altiumThread, false);
+
         return true;
     }
 }
@@ -67,9 +82,9 @@ if (-not [AltiumNetlistGenerator]::FindAndActivate()) {
     exit 1
 }
 
-# Wait for Altium to actually reach the foreground — SetForegroundWindow can fail silently
+# Wait for Altium to actually reach the foreground
 $focused = $false
-for ($i = 0; $i -lt 10; $i++) {
+for ($i = 0; $i -lt 100; $i++) {
     Start-Sleep -Milliseconds 100
     if ([AltiumNetlistGenerator]::IsAltiumForeground()) { $focused = $true; break }
 }
@@ -79,9 +94,8 @@ if (-not $focused) {
     exit 1
 }
 
-# Extra settle time — focus is confirmed but Altium's input queue may not be ready yet.
-# Without this, Alt+D can be dropped during the focus transition on slower machines.
-Start-Sleep -Milliseconds 1000
+# Settle time after confirmed focus — Altium's input queue may not be ready yet.
+Start-Sleep -Milliseconds 500
 
 function Send-KeyIfFocused($key) {
     if (-not [AltiumNetlistGenerator]::IsAltiumForeground()) {
