@@ -43,20 +43,6 @@ Claude activates these automatically based on what you say — no commands neede
 
 ---
 
-## Sharing with your team
-
-Firmware, mechanical, and test engineers need schematic context too — but they don't have Altium.
-
-Ask Claude to package your project:
-
-> *"Package this for the firmware team"* / *"Export for sharing"*
-
-Claude calls `package_for_xfn`, which writes a portable SQLite snapshot (`.db`) next to your `.PrjPcb`. Send that file to your team via Slack or a shared drive.
-
-Your teammates open it with **[pcb-copilot](https://github.com/ee-in-a-box/pcb-copilot)** — a companion MCP server that gives Claude the same schematic Q&A tools against the snapshot, no Altium license required.
-
----
-
 ## Requirements
 
 - Windows
@@ -105,6 +91,20 @@ Once installed, open Claude and ask anything about your schematic — the copilo
 ## Privacy
 
 Your data stays yours. The MCP server runs locally, doesn't log anything, and doesn't phone home. All schematic data is sent only to Claude via your own Enterprise or Pro subscription.
+
+---
+
+## NEW: Sharing with your team
+
+Want to share the same capabilities with Firmware, mechanical, and test engineers without them needing an Altium License?
+
+Ask Claude to package your project:
+
+> *"Package this for the firmware team"* / *"Export for sharing"*
+
+Claude calls `package_for_xfn`, which writes a portable SQLite snapshot (`.db`) next to your `.PrjPcb`. Share that file with your team via confluence, Slack or a shared drive.
+
+Your teammates open it with **[pcb-copilot](https://github.com/ee-in-a-box/pcb-copilot)** — a companion MCP server that gives Claude the same schematic Q&A tools against the snapshot, no Altium license required.
 
 ---
 
