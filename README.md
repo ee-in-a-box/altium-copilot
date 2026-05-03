@@ -100,7 +100,7 @@ Want to share the same capabilities with firmware, mechanical, and test engineer
 
 Ask Claude to package your project:
 
-> *"Package this for the firmware team"* / *"Export for sharing"*
+> *"Package this Altium project to share with the cross functional team"* / *"Export this Altium project for sharing"*
 
 Claude calls `package_for_xfn`, which writes a portable SQLite snapshot (`.db`) next to your `.PrjPcb`. Share that file with your team via Confluence, Slack, or a shared drive.
 
