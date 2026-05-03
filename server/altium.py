@@ -236,7 +236,16 @@ class AltiumClient:
 
         for attempt in range(1, max_attempts + 1):
             logging.info("Generating netlist (attempt %d/%d)", attempt, max_attempts)
-            _run_ps("generate_protel_netlist.ps1", Delay="50")
+            try:
+                _run_ps("generate_protel_netlist.ps1", Delay="50")
+            except subprocess.TimeoutExpired:
+                logging.warning("PS timed out on attempt %d, retrying...", attempt)
+                continue
+            except RuntimeError as e:
+                if "focus" in str(e).lower() or "foreground" in str(e).lower():
+                    logging.warning("Focus acquisition failed on attempt %d, retrying...", attempt)
+                    continue
+                raise
 
             start_time = time.time()
             while time.time() - start_time < per_attempt_timeout:

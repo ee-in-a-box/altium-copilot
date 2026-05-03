@@ -84,7 +84,7 @@ if (-not [AltiumNetlistGenerator]::FindAndActivate()) {
 
 # Wait for Altium to actually reach the foreground
 $focused = $false
-for ($i = 0; $i -lt 100; $i++) {
+for ($i = 0; $i -lt 50; $i++) {
     Start-Sleep -Milliseconds 100
     if ([AltiumNetlistGenerator]::IsAltiumForeground()) { $focused = $true; break }
 }
@@ -113,6 +113,7 @@ Start-Sleep -Milliseconds 200
 
 # Design > Netlist > Protel > Enter, then ESC to dismiss any lingering dialog
 Send-KeyIfFocused "%d"
+Start-Sleep -Milliseconds 500  # wait for Design menu to open before navigating
 Send-KeyIfFocused "n"
 Send-KeyIfFocused "r"
 Send-KeyIfFocused "p"
