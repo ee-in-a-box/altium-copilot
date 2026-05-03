@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from services.registry import read_registry, upsert_registry_entry
+from services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
 
 
 def test_read_registry_missing_file(tmp_path):
@@ -38,3 +38,30 @@ def test_upsert_case_insensitive_match(tmp_path):
         upsert_registry_entry("BMS.PrjPcb", "D:/NewLocation/BMS")
         registry = read_registry()
     assert len(registry["projects"]) == 1
+
+
+def test_mark_xfn_exported_stamps_timestamp(tmp_path):
+    fake_path = tmp_path / ".ee-in-a-box" / "altium-projects.json"
+    with patch("services.registry.REGISTRY_PATH", fake_path):
+        upsert_registry_entry("BMS.PrjPcb", "C:/Projects/BMS")
+        mark_xfn_exported("BMS.PrjPcb")
+        registry = read_registry()
+    assert "last_exported_xfn" in registry["projects"][0]
+
+
+def test_mark_xfn_exported_case_insensitive(tmp_path):
+    fake_path = tmp_path / ".ee-in-a-box" / "altium-projects.json"
+    with patch("services.registry.REGISTRY_PATH", fake_path):
+        upsert_registry_entry("BMS.PrjPcb", "C:/Projects/BMS")
+        mark_xfn_exported("bms.prjpcb")
+        registry = read_registry()
+    assert "last_exported_xfn" in registry["projects"][0]
+
+
+def test_mark_xfn_exported_unknown_project_is_noop(tmp_path):
+    fake_path = tmp_path / ".ee-in-a-box" / "altium-projects.json"
+    with patch("services.registry.REGISTRY_PATH", fake_path):
+        upsert_registry_entry("BMS.PrjPcb", "C:/Projects/BMS")
+        mark_xfn_exported("Other.PrjPcb")
+        registry = read_registry()
+    assert "last_exported_xfn" not in registry["projects"][0]

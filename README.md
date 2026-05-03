@@ -43,6 +43,20 @@ Claude activates these automatically based on what you say — no commands neede
 
 ---
 
+## Sharing with your team
+
+Firmware, mechanical, and test engineers need schematic context too — but they don't have Altium.
+
+Ask Claude to package your project:
+
+> *"Package this for the firmware team"* / *"Export for sharing"*
+
+Claude calls `package_for_xfn`, which writes a portable SQLite snapshot (`.db`) next to your `.PrjPcb`. Send that file to your team via Slack or a shared drive.
+
+Your teammates open it with **[pcb-copilot](https://github.com/ee-in-a-box/pcb-copilot)** — a companion MCP server that gives Claude the same schematic Q&A tools against the snapshot, no Altium license required.
+
+---
+
 ## Requirements
 
 - Windows
@@ -97,7 +111,6 @@ Your data stays yours. The MCP server runs locally, doesn't log anything, and do
 ## What i'm experimenting with next
 
 - **PCB layout understanding** — same live-access model, extended to the board layer
-- **XFN Engineer** — altium-copilot without the Altium license, works from a static netlist export for cross-functional teams
 - **Simulator** — walks you through simulating and validating your design before you spin a board
 - **Librarian** — periodic audits of your component libraries, flags stale or discontinued entries
 - **Supply Chain Expert** — component availability, lead times, alternatives, and sourcing risk

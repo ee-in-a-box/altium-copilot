@@ -24,6 +24,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# pcb-copilot export snapshots — binary, not for version control
+*-pcb-copilot.db
+
 # Personal project notes
 docs/
 
@@ -32,3 +35,4 @@ docs/
 
 # Developement
 sample_netlist/
+.worktrees/

@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.2.0] - 2026-05-03
+
+### Added
+- `package_for_xfn` tool — exports the loaded project to a portable SQLite `.db` snapshot that cross-functional team members (firmware, mechanical, test, reliability) can query with [pcb-copilot](https://github.com/ee-in-a-box/pcb-copilot) without needing Altium
+- SQLite export schema: `project`, `sheets`, `variants`, `components`, `nets`, `pins` tables with indexed lookups; `nets.pin_count` for fanout queries
+- Registry now stamps `last_exported_xfn` timestamp on every successful `package_for_xfn` call
+- `CONTRIBUTING.md`: DB schema versioning guidelines — bump `SCHEMA_VERSION` in `export.py` and `SUPPORTED_SCHEMA_VERSION` in pcb-copilot on any schema change
+
+### Removed
+- `--update` self-update command — the one-line `install.ps1` installer handles updates; in-chat update notifications are retained
+
+### Fixed
+- Registry writes are now atomic (write to `.tmp` then `os.replace`) — no corruption on crash or power loss
+- Connection leak in SQLite export when an exception occurred mid-write; now always closes the connection in `finally`
+- Swallowed `OSError` in export rollback path — exceptions now propagate correctly
+- Duplicate `HIGH_FANOUT_THRESHOLD` definition removed (was defined in both `export.py` and `main.py`)
+
+### Internal
+- 330 lines of new test coverage: `test_export.py`, `test_package_for_xfn.py`, registry tests for `mark_xfn_exported`
+- `.gitignore`: added `*-pcb-copilot.db` (binary export snapshots) and `.worktrees/`
+
+---
+
 ## [0.1.10] - 2026-04-23
 
 ### Internal

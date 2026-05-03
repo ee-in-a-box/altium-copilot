@@ -21,13 +21,15 @@ from mcp.types import ToolAnnotations
 try:
     from altium import AltiumClient
     from parsers.prj_pcb import parse_prj_pcb, VariantState
-    from services.registry import read_registry, upsert_registry_entry
+    from services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
     from services.page_netlist import build_sheet_context
+    from export import export_project, HIGH_FANOUT_THRESHOLD
 except ImportError:
     from server.altium import AltiumClient
     from server.parsers.prj_pcb import parse_prj_pcb, VariantState
-    from server.services.registry import read_registry, upsert_registry_entry
+    from server.services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
     from server.services.page_netlist import build_sheet_context
+    from server.export import export_project, HIGH_FANOUT_THRESHOLD
 
 logging.basicConfig(level=logging.INFO)
 
@@ -95,88 +97,6 @@ def _check_for_update(current_version: str) -> None:
         return
 
 
-
-def _cmd_update() -> None:
-    """Self-update: download latest release exe and swap in place."""
-    import tempfile
-
-    _OK  = "\033[32m[OK]\033[0m"
-    _ERR = "\033[31m[ERROR]\033[0m"
-
-    current = _read_version()
-    print(f"{_OK} Current version: {current}")  # noqa: T201
-    print(f"{_OK} Checking for updates...")  # noqa: T201
-
-    try:
-        response = httpx.get(_GITHUB_RELEASES_URL, timeout=10)
-        response.raise_for_status()
-        tag = response.json().get("tag_name", "").lstrip("v")
-    except Exception as e:
-        print(f"{_ERR} Could not reach GitHub: {e}")  # noqa: T201
-        sys.exit(1)
-        return
-
-    if not tag:
-        print(f"{_ERR} Could not determine latest version.")  # noqa: T201
-        sys.exit(1)
-        return
-
-    if not _is_newer(tag, current):
-        print(f"{_OK} Already up to date (v{current}).")  # noqa: T201
-        sys.exit(0)
-        return
-
-    print(f"{_OK} Updating {current} -> {tag} ...")  # noqa: T201
-
-    exe_url = f"https://github.com/ee-in-a-box/altium-copilot/releases/download/v{tag}/altium-copilot.exe"
-
-    # Download new exe to temp file
-    exe_path = Path(sys.executable)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".exe") as tmp:
-        tmp_path = Path(tmp.name)
-    try:
-        with httpx.stream("GET", exe_url, timeout=120, follow_redirects=True) as r:
-            r.raise_for_status()
-            with open(tmp_path, "wb") as f:
-                for chunk in r.iter_bytes():
-                    f.write(chunk)
-    except Exception as e:
-        tmp_path.unlink(missing_ok=True)
-        print(f"{_ERR} Download failed: {e}")  # noqa: T201
-        sys.exit(1)
-        return
-
-    # Swap exe: rename running exe → .old, move new exe into place.
-    # If a previous .old is still locked by a running process, use a unique name.
-    old_path = exe_path.with_suffix(".old")
-    if old_path.exists():
-        try:
-            old_path.unlink()
-        except OSError:
-            old_path = exe_path.parent / f"altium-copilot.{os.getpid()}.old"
-    try:
-        exe_path.rename(old_path)
-        tmp_path.rename(exe_path)
-    except Exception as e:
-        print(f"{_ERR} Could not replace binary: {e}")  # noqa: T201
-        sys.exit(1)
-        return
-    # .old is still mapped by running processes — best-effort delete, cleaned up on next startup.
-    try:
-        old_path.unlink()
-    except OSError:
-        pass
-
-    # Mark installed version in state file
-    state = _read_state()
-    state["installed_version"] = tag
-    state.pop("update_available", None)
-    _write_state(state)
-
-    print(f"{_OK} Updated to v{tag}. Restart Claude Desktop to apply.")  # noqa: T201
-
-
-HIGH_FANOUT_THRESHOLD = 25
 SEARCH_NETS_MAX_RESULTS = 50
 
 SERVER_INSTRUCTIONS = """\
@@ -219,6 +139,7 @@ Call set_project_dir with the new path, then repeat the session-start steps.
   a sample and a warning — treat these as rails, not signals.
 - schematic_review — call when the user explicitly asks to review or verify the schematic (e.g. "review this", "check my schematic", "do a design review", "is this correct?", "does this look right?"). Do not call for general questions about the circuit.
 - brainstorm_circuits — call when the user wants to brainstorm, or is asking how to design, improve, or choose an approach for a circuit. Any question about topology, architecture, or how to add/change a sub-circuit should trigger this. Do not call for general questions or reviews.
+- package_for_xfn — call when the user explicitly asks to export, package, or share the project with firmware, mechanical, test, or reliability engineers (e.g. "package this for the firmware team", "export for sharing", "create a pcb-copilot snapshot"). Do not call speculatively.
 - When the user says they have changed or saved anything in the schematic, call `refresh_netlist`
   before answering questions about the updated design. Do not call it speculatively — only after
   the user confirms they have saved in Altium (Ctrl+S).
@@ -980,20 +901,49 @@ def brainstorm_circuits() -> str:
     return BRAINSTORM_CIRCUITS_PROMPT
 
 
-if __name__ == "__main__":
-    # Clean up .old files left by previous --update runs.
-    if getattr(sys, "frozen", False):
-        for old in Path(sys.executable).parent.glob("*.old"):
-            try:
-                old.unlink()
-            except OSError:
-                pass
+# ---------- package_for_xfn ----------
 
+def _package_for_xfn_impl(
+    project: dict,
+    netlist: dict,
+    variant_state,
+    version: str,
+) -> str:
+    try:
+        db_path = export_project(project, netlist, variant_state, version)
+    except Exception as e:
+        return json.dumps({"error": "export_failed", "message": str(e)})
+    prj_pcb_name = Path(project["prj_pcb_path"]).name
+    mark_xfn_exported(prj_pcb_name)
+    return (
+        f"Exported to: {db_path}\n"
+        "Share this file with your cross-functional team via Slack or a shared drive.\n"
+        "Do not commit it to Git — it is a binary snapshot and will cause repository bloat."
+    )
+
+
+@mcp.tool(
+    title="Package for Cross-Functional Team",
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False),
+)
+def package_for_xfn() -> str:
+    """Export the current schematic project to a portable .db snapshot file for the
+    cross-functional team. Only call this tool when the user explicitly asks to package
+    or export the project for sharing with firmware, mechanical, test, or reliability
+    engineers. Do not call speculatively."""
+    try:
+        project, netlist, variant_state = _require_project()
+    except ValueError:
+        return json.dumps({
+            "error": "no_project",
+            "message": "No project loaded. Ask the user to open a project in Altium first.",
+        })
+    return _package_for_xfn_impl(project, netlist, variant_state, _read_version())
+
+
+if __name__ == "__main__":
     if "--version" in sys.argv:
         print(f"altium-copilot v{_read_version()}")  # noqa: T201
-        sys.exit(0)
-    if "--update" in sys.argv:
-        _cmd_update()
         sys.exit(0)
     threading.Thread(target=_check_for_update, args=(_read_version(),), daemon=True).start()
     try:

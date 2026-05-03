@@ -125,34 +125,4 @@ def test_check_for_update_silently_handles_network_error(tmp_path):
             _check_for_update("0.1.0")  # must not raise
 
 
-def test_cmd_update_already_up_to_date(tmp_path, capsys):
-    fake_state = tmp_path / "state.json"
-    fake_state.write_text(json.dumps({}))
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"tag_name": "v0.2.5"}
-    with patch("main.STATE_PATH", fake_state):
-        with patch("main._read_version", return_value="0.2.5"):
-            with patch("main.httpx.get", return_value=mock_response):
-                with patch("sys.exit") as mock_exit:
-                    from main import _cmd_update
-                    _cmd_update()
-                    captured = capsys.readouterr()
-                    assert "Already up to date" in captured.out
-                    mock_exit.assert_called_with(0)
-
-
-
-def test_cmd_update_network_error(tmp_path, capsys):
-    fake_state = tmp_path / "state.json"
-    fake_state.write_text(json.dumps({}))
-    with patch("main.STATE_PATH", fake_state):
-        with patch("main._read_version", return_value="0.2.5"):
-            with patch("main.httpx.get", side_effect=Exception("no internet")):
-                with patch("sys.exit") as mock_exit:
-                    from main import _cmd_update
-                    _cmd_update()
-                    captured = capsys.readouterr()
-                    assert "ERROR" in captured.out
-                    mock_exit.assert_called_with(1)
-
 

@@ -23,7 +23,9 @@ def read_registry() -> dict:
 
 def write_registry(registry: dict) -> None:
     REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REGISTRY_PATH.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+    tmp = REGISTRY_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+    os.replace(tmp, REGISTRY_PATH)
 
 
 def upsert_registry_entry(name: str, dir: str) -> None:
@@ -36,4 +38,14 @@ def upsert_registry_entry(name: str, dir: str) -> None:
             break
     else:
         registry["projects"].append({"name": name, "dir": dir, "last_used": now})
+    write_registry(registry)
+
+
+def mark_xfn_exported(name: str) -> None:
+    registry = read_registry()
+    now = datetime.now(timezone.utc).isoformat()
+    for entry in registry["projects"]:
+        if entry["name"].lower() == name.lower():
+            entry["last_exported_xfn"] = now
+            break
     write_registry(registry)

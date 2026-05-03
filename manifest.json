@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "altium-copilot",
   "display_name": "Altium Copilot",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "AI copilot for Altium Designer (Windows only). Reads live schematics from a running Altium instance — trace nets, inspect components, switch variants, and run structured design reviews, all from Claude. Requires Altium Designer installed and running on Windows.",
   "author": {
     "name": "Maisam Pyarali",
@@ -35,7 +35,8 @@
     { "name": "list_variants", "description": "List all project variants and their DNP (Do Not Populate) component lists. Returns variant names and which components are excluded in each." },
     { "name": "set_active_variant", "description": "Switch the active variant by name. DNP annotations update immediately and all subsequent tool calls reflect the new variant's populated/excluded components." },
     { "name": "schematic_review", "description": "Start a structured 3-phase schematic review: power integrity, signal integrity, and BOM/variant sanity. Automatically triggered when the user asks Claude to review the schematic." },
-    { "name": "brainstorm_circuits", "description": "Start a structured 5-phase circuit brainstorming session: requirements, topology options, component selection, tradeoffs, and next steps. Automatically triggered when the user asks Claude to brainstorm a circuit." }
+    { "name": "brainstorm_circuits", "description": "Start a structured 5-phase circuit brainstorming session: requirements, topology options, component selection, tradeoffs, and next steps. Automatically triggered when the user asks Claude to brainstorm a circuit." },
+    { "name": "package_for_xfn", "description": "Export the current schematic project to a portable SQLite .db snapshot that cross-functional team members (firmware, mechanical, test, reliability) can query with pcb-copilot. Only call when the user explicitly asks to package or export the project for sharing." }
   ],
   "compatibility": {
     "claude_desktop": ">=1.0.0",

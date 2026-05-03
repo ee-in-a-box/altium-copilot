@@ -18,6 +18,16 @@ build and publish workflow. Contributors cannot ship a release.
 
 ---
 
+## DB Schema Changes
+
+`server/export.py` defines `SCHEMA_VERSION = 1`. Any PR that changes the SQLite
+schema in `_create_schema()` **must** also:
+
+1. Bump `SCHEMA_VERSION` in `server/export.py`
+2. Bump `SUPPORTED_SCHEMA_VERSION` in `pcb-copilot/server/main.py` (separate repo)
+
+Failing to bump causes pcb-copilot to silently load a DB with an incompatible schema.
+
 ## Prerequisites
 
 - Windows (the MCP uses PowerShell to talk to Altium Designer)
