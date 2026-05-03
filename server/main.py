@@ -31,7 +31,7 @@ except ImportError:
     from server.services.page_netlist import build_sheet_context
     from server.export import export_project, HIGH_FANOUT_THRESHOLD
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 
 
 def _manifest_path() -> Path:
