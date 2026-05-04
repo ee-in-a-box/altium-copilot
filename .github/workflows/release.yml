@@ -6,7 +6,24 @@ on:
       - "v*.*.*"
 
 jobs:
+  validate-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate CHANGELOG has release notes
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::No release notes found in CHANGELOG.md for version $VERSION"
+            echo "Add a section like '## [$VERSION] - $(date +%Y-%m-%d)' to CHANGELOG.md"
+            exit 1
+          fi
+          echo "Found release notes for version $VERSION"
+
   test:
+    needs: validate-changelog
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +63,20 @@ jobs:
         shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTES=$(awk -v ver="$VERSION" '
+            /^## \[/ { if (found) exit; if ($0 ~ "\\[" ver "\\]") found=1; next }
+            /^\[.*\]:/ { exit }
+            found { print }
+          ' CHANGELOG.md)
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Update manifest version
         shell: bash
         run: |
@@ -69,6 +100,6 @@ jobs:
         with:
           tag_name: "v${{ steps.version.outputs.version }}"
           name: "v${{ steps.version.outputs.version }}"
+          body: ${{ steps.changelog.outputs.notes }}
           files: |
             server/dist/altium-copilot.exe
-          generate_release_notes: true
