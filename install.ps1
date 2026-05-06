@@ -118,9 +118,22 @@ if ($mcpbExtension) {
 }
 
 # --- Register with Claude Code ---
-if (Get-Command claude -ErrorAction SilentlyContinue) {
+# Resolve claude.exe via PATH first, then fall back to known install locations.
+# The official installer (https://claude.ai/install.ps1) puts it under .local\bin,
+# which is not on PATH in a fresh elevated PowerShell session.
+$claudeExe = (Get-Command claude -ErrorAction SilentlyContinue).Source
+if (-not $claudeExe) {
+    $candidates = @(
+        "$env:USERPROFILE\.local\bin\claude.exe",
+        "$env:APPDATA\npm\claude.cmd"
+    )
+    $claudeExe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+if ($claudeExe) {
     Write-Ok "Registering with Claude Code..."
-    claude mcp add --scope user altium-copilot -- altium-copilot
+    # Remove first so re-runs idempotently update the absolute path.
+    & $claudeExe mcp remove --scope user altium-copilot 2>$null
+    & $claudeExe mcp add    --scope user altium-copilot -- $exeDest
     Write-Ok "Done. Altium Copilot is ready in Claude Code."
 } else {
     Write-Warn "Claude Code not found — skipping MCP registration."
