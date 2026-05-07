@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.2.2] - 2026-05-07
+
+### Changed
+- `query_net` now accepts regex patterns for discovery (e.g. `UART` finds all UART nets) and
+  falls back to exact case-insensitive match when the pattern is invalid regex or finds nothing —
+  so PCB net names like `+5V`, `+3V3`, and `VIN[0]` resolve correctly without escaping
+- `search_nets` removed — `query_net` covers all its use cases with the same or smaller token cost
+- `get_sheet_context` output switched from JSON to compact text format (reduces token usage ~60%)
+  with automatic pagination: if `has_more: True`, call again with `offset=<next_offset>`
+- Added `maxResultSizeChars` MCP annotations to `query_net` (60K) and `get_sheet_context` (200K)
+
+### Fixed
+- `get_sheet_context` with a negative or out-of-bounds `offset` is now handled gracefully
+  instead of silently returning wrong data or looping
+
+---
+
 ## [0.2.1] - 2026-05-03
 
 ### Fixed

@@ -22,13 +22,13 @@ try:
     from altium import AltiumClient
     from parsers.prj_pcb import parse_prj_pcb, VariantState
     from services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
-    from services.page_netlist import build_sheet_context
+    from services.page_netlist import build_sheet_context, MAX_RESULT_SIZE_CHARS
     from export import export_project, HIGH_FANOUT_THRESHOLD
 except ImportError:
     from server.altium import AltiumClient
     from server.parsers.prj_pcb import parse_prj_pcb, VariantState
     from server.services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
-    from server.services.page_netlist import build_sheet_context
+    from server.services.page_netlist import build_sheet_context, MAX_RESULT_SIZE_CHARS
     from server.export import export_project, HIGH_FANOUT_THRESHOLD
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -97,7 +97,8 @@ def _check_for_update(current_version: str) -> None:
         return
 
 
-SEARCH_NETS_MAX_RESULTS = 50
+QUERY_NET_MAX_RESULTS = 50
+QUERY_NET_MAX_RESULT_SIZE_CHARS = 60_000
 
 SERVER_INSTRUCTIONS = """\
 You are an Altium Designer copilot. Use these tools to understand and discuss schematic projects.
@@ -178,8 +179,8 @@ otherwise your data may be stale.
 ## Error Recovery
 
 - Component not found → call search_components with a regex to locate it
-- Net not found → use search_nets with a keyword to discover the real name
-  (e.g. search_nets('MISO') or search_nets('CAN')). Never guess net names or
+- Net not found → use query_net with a keyword pattern to discover the real name
+  (e.g. query_net('MISO') or query_net('CAN')). Never guess net names or
   manually chase anonymous nets one by one.
 - no_sheet_open → Altium is running but no active schematic sheet is detected (project may
   or may not be loaded); tell the user to open their project in Altium and open a schematic
@@ -376,72 +377,75 @@ def refresh_netlist() -> str:
 
 # ---------- query_net ----------
 
-def _query_net_impl(netlist: dict, net_name: str) -> str:
+def _query_net_impl(netlist: dict, pattern: str) -> str:
     nets = netlist["nets"]
-    pin_to_net = netlist["pin_to_net"]
 
-    net_key = next((k for k in nets if k.lower() == net_name.lower()), None)
-    if net_key is None:
-        return json.dumps({"error": "net_not_found", "net": net_name,
-                           "message": f"Net '{net_name}' not found. Check the net name."})
+    # Try regex first for discovery (e.g. 'UART' finds MCU_UART_TX and USB_UART_RX).
+    # If regex is invalid or finds nothing, fall back to exact case-insensitive match
+    # so PCB net names with metacharacters (+5V, VIN[0]) resolve without escaping.
+    try:
+        regex = re.compile(pattern, re.IGNORECASE)
+        matches = [name for name in nets if regex.search(name)]
+    except re.error:
+        matches = []
+    if not matches:
+        exact_key = next((k for k in nets if k.lower() == pattern.lower()), None)
+        if exact_key is not None:
+            matches = [exact_key]
 
-    all_connections = nets[net_key]
+    if not matches:
+        return json.dumps({"error": "net_not_found", "pattern": pattern,
+                           "message": f"No nets matching '{pattern}'. Use a broader pattern or check the name."})
 
-    if len(all_connections) > HIGH_FANOUT_THRESHOLD:
-        sample_pins = [{"refdes": r, "pin": p} for r, p in all_connections[:10]]
-        seen_refdes: set[str] = set()
-        sample_neighbors = []
-        for refdes, _pin in all_connections[:10]:
-            if refdes not in pin_to_net or refdes in seen_refdes:
-                continue
-            seen_refdes.add(refdes)
-            for other_pin, other_net in pin_to_net[refdes].items():
-                if other_net != net_key:
-                    sample_neighbors.append({
-                        "refdes": refdes,
-                        "via_pin": other_pin,
-                        "connects_to_net": other_net,
-                    })
-            if len(sample_neighbors) >= 5:
-                break
+    if len(matches) > QUERY_NET_MAX_RESULTS:
         return json.dumps({
-            "net": net_key,
-            "pin_count": len(all_connections),
-            "warning": "high_fanout",
-            "message": (
-                f"Net '{net_key}' has {len(all_connections)} connections. "
-                "High-fanout nets are typically power rails or ground planes. "
-                "Showing a sample of 10 connections only."
-            ),
-            "pins_sample": sample_pins,
-            "neighbors_sample": sample_neighbors,
-        }, indent=2)
+            "error": "too_many_matches",
+            "message": f"Pattern matched {len(matches)} nets (limit: {QUERY_NET_MAX_RESULTS}). Be more specific.",
+        })
 
-    pins = [{"refdes": r, "pin": p} for r, p in all_connections]
-    neighbors = []
-    for refdes, _pin in all_connections:
-        if refdes not in pin_to_net:
-            continue
-        for other_pin, other_net in pin_to_net[refdes].items():
-            if other_net != net_key:
-                neighbors.append({
-                    "refdes": refdes,
-                    "via_pin": other_pin,
-                    "connects_to_net": other_net,
-                })
+    results = []
+    for net_key in matches:
+        all_connections = nets[net_key]
+        if len(all_connections) > HIGH_FANOUT_THRESHOLD:
+            results.append({
+                "net": net_key,
+                "pin_count": len(all_connections),
+                "warning": "high_fanout",
+                "message": (
+                    f"Net '{net_key}' has {len(all_connections)} connections — likely a power rail or ground. "
+                    "Showing a sample of 10 connections only."
+                ),
+                "pins_sample": [{"refdes": r, "pin": p} for r, p in all_connections[:10]],
+            })
+        else:
+            results.append({
+                "net": net_key,
+                "pin_count": len(all_connections),
+                "pins": [{"refdes": r, "pin": p} for r, p in all_connections],
+            })
 
-    return json.dumps({"net": net_key, "pins": pins, "neighbors": neighbors}, indent=2)
+    if len(results) == 1:
+        return json.dumps(results[0], indent=2)
+    return json.dumps({"match_count": len(results), "nets": results}, indent=2)
 
 
-@mcp.tool(title="Query Net", annotations=ToolAnnotations(readOnlyHint=True))
-def query_net(net_name: str) -> str:
-    """Trace net connectivity. Returns all pins on the net and one-hop neighbors.
-    Call repeatedly on neighbor nets to walk the circuit graph."""
+@mcp.tool(title="Query Net", annotations=ToolAnnotations(readOnlyHint=True),
+          meta={"anthropic/maxResultSizeChars": QUERY_NET_MAX_RESULT_SIZE_CHARS})
+def query_net(pattern: str) -> str:
+    """Find nets by name and return every component pin connected to them.
+    Accepts a case-insensitive regex pattern for discovery (e.g. 'UART' finds all
+    UART nets, 'SPI_CLK|SPI_CS' finds both, 'GND' finds GND/AGND/DGND).
+    If the pattern is not valid regex (e.g. +5V, VIN[0] contain metacharacters),
+    it automatically falls back to an exact case-insensitive match — so common
+    power rail names like +5V and +3V3 work without escaping.
+    High-fanout nets (power rails, ground) are flagged and sampled at 10 pins.
+    Use get_sheet_context for full pin-to-net data on a sheet; use this tool to
+    discover net names or trace a specific net across sheets."""
     try:
         _, netlist, _ = _require_project()
     except ValueError as e:
         return json.dumps({"error": "no_project", "message": str(e)})
-    return _query_net_impl(netlist, net_name)
+    return _query_net_impl(netlist, pattern)
 
 
 # ---------- get_component ----------
@@ -551,47 +555,11 @@ def search_components(pattern: str, search_by: str = "description") -> str:
     return _search_components_impl(netlist, pattern, search_by)
 
 
-# ---------- search_nets ----------
-
-def _search_nets_impl(netlist: dict, pattern: str) -> str:
-    try:
-        regex = re.compile(pattern, re.IGNORECASE)
-    except re.error as e:
-        return json.dumps({"error": "invalid_pattern", "message": f"Invalid regex: {e}"})
-
-    nets = netlist["nets"]
-    matches = [name for name in nets if regex.search(name)]
-
-    if len(matches) > SEARCH_NETS_MAX_RESULTS:
-        return json.dumps({
-            "error": "too_many_matches",
-            "message": f"Pattern matched {len(matches)} nets (limit: {SEARCH_NETS_MAX_RESULTS}). Be more specific.",
-        })
-
-    results = []
-    for name in matches:
-        pins = [{"refdes": r, "pin": p} for r, p in nets[name]]
-        results.append({"net": name, "pin_count": len(pins), "pins": pins})
-
-    return json.dumps({"match_count": len(results), "nets": results}, indent=2)
-
-
-@mcp.tool(title="Search Nets", annotations=ToolAnnotations(readOnlyHint=True))
-def search_nets(pattern: str) -> str:
-    """Search net names by regex pattern (case-insensitive). Returns matching nets with
-    their full pin lists inline. Use this to discover net names before calling query_net.
-    Examples: search_nets('MISO|MOSI|SCK') for SPI, search_nets('UART') for UART nets."""
-    try:
-        _, netlist, _ = _require_project()
-    except ValueError as e:
-        return json.dumps({"error": "no_project", "message": str(e)})
-    return _search_nets_impl(netlist, pattern)
-
-
 # ---------- get_sheet_context ----------
 
 def _get_sheet_context_impl(project: dict, netlist: dict, variant_state: VariantState,
-                             sheet_name: str | None, altium_status: dict) -> str:
+                             sheet_name: str | None, altium_status: dict,
+                             offset: int = 0) -> str:
     if sheet_name is None:
         if not altium_status.get("running"):
             return json.dumps({
@@ -626,23 +594,28 @@ def _get_sheet_context_impl(project: dict, netlist: dict, variant_state: Variant
             })
         sheet_name = matched
 
-    return build_sheet_context(netlist, sheet_name, variant_state)
+    return build_sheet_context(netlist, sheet_name, variant_state, offset)
 
 
-@mcp.tool(title="Get Sheet Context", annotations=ToolAnnotations(readOnlyHint=True))
-def get_sheet_context(sheet_name: str | None = None) -> str:
+@mcp.tool(title="Get Sheet Context", annotations=ToolAnnotations(readOnlyHint=True),
+          meta={"anthropic/maxResultSizeChars": MAX_RESULT_SIZE_CHARS})
+def get_sheet_context(sheet_name: str | None = None, offset: int = 0) -> str:
     """Get all components on a schematic sheet with their pin-to-net connections and
     one-hop cross-sheet neighbors. Pass sheet_name to load any sheet by name — not just
     the active Altium tab. Use this as the FIRST tool for any question about a sheet, and
     again with sheet_name when following cross-sheet signals. Only call query_net or
-    get_component afterward for high-fanout nets (>25 pins) or two-hop tracing."""
+    get_component afterward for high-fanout nets (>25 pins) or two-hop tracing.
+
+    Results are paginated by character budget. If the response contains has_more: true,
+    call this tool again with offset=<next_offset from next_hint> and the same sheet_name,
+    and repeat until has_more is false. Accumulate all pages before answering the user."""
     try:
         project, netlist, variant_state = _require_project()
     except ValueError as e:
         return json.dumps({"error": "no_project", "message": str(e)})
 
     altium_status = _altium.get_status() if sheet_name is None else {}
-    return _get_sheet_context_impl(project, netlist, variant_state, sheet_name, altium_status)
+    return _get_sheet_context_impl(project, netlist, variant_state, sheet_name, altium_status, offset)
 
 
 # ---------- list_variants ----------
@@ -756,7 +729,7 @@ At minimum, check:
 3. Signal continuity — use connected_to on each critical pin to trace
    source-to-destination; verify correct termination and that every
    expected endpoint appears
-4. Cross-sheet nets — use search_nets with broad patterns to enumerate
+4. Cross-sheet nets — use query_net with broad patterns to enumerate
    all cross-sheet references; flag dangling or unexpected appearances
 5. Failure modes — for each sub-circuit: what happens if inputs are out
    of range, or a passive is off by 10%?
@@ -877,7 +850,7 @@ State your assumptions explicitly. Do not recommend an approach before completin
 
 Before the user commits to an approach, check the existing design:
 - Use search_components to find components that might already serve a similar role.
-- Use search_nets to check whether relevant power rails or signal nets already exist.
+- Use query_net to check whether relevant power rails or signal nets already exist.
 
 Do not guess from memory — verify with tools. If the design already has something relevant, say so.
 

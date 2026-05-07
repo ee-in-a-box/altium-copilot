@@ -24,16 +24,17 @@ def default_vs():
 
 
 def test_get_sheet_by_name(sample_netlist, project, default_vs):
-    result = json.loads(_get_sheet_context_impl(project, sample_netlist, default_vs, "Comms", {}))
-    assert result["sheet"] == "Comms"
-    refdes_list = [c["refdes"] for c in result["components"]]
+    result = _get_sheet_context_impl(project, sample_netlist, default_vs, "Comms", {})
+    assert result.startswith("sheet:Comms ")
+    component_lines = [ln for ln in result.splitlines() if ln and not ln.startswith(" ") and "|" in ln]
+    refdes_list = [ln.split("|")[0] for ln in component_lines]
     assert set(refdes_list) == {"R45", "U2"}
 
 
 def test_get_sheet_from_active_tab(sample_netlist, project, default_vs):
     altium_status = {"running": True, "active_tab": "Comms.SchDoc"}
-    result = json.loads(_get_sheet_context_impl(project, sample_netlist, default_vs, None, altium_status))
-    assert result["sheet"] == "Comms"
+    result = _get_sheet_context_impl(project, sample_netlist, default_vs, None, altium_status)
+    assert result.startswith("sheet:Comms ")
 
 
 def test_get_sheet_altium_not_running(sample_netlist, project, default_vs):
@@ -55,5 +56,5 @@ def test_get_sheet_by_name_not_found(sample_netlist, project, default_vs):
 
 
 def test_get_sheet_case_insensitive_name(sample_netlist, project, default_vs):
-    result = json.loads(_get_sheet_context_impl(project, sample_netlist, default_vs, "comms", {}))
-    assert result["sheet"] == "Comms"
+    result = _get_sheet_context_impl(project, sample_netlist, default_vs, "comms", {})
+    assert result.startswith("sheet:Comms ")

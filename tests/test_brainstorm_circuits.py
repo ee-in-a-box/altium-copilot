@@ -36,7 +36,7 @@ def test_brainstorm_circuits_references_fit_check_tools():
     import server.main as main_mod
     result = main_mod.brainstorm_circuits()
     assert "search_components" in result
-    assert "search_nets" in result
+    assert "query_net" in result
 
 
 def test_brainstorm_circuits_enforces_one_question_at_a_time():
