@@ -342,7 +342,7 @@ def set_project_dir(project_dir: str) -> str:
 
     upsert_registry_entry(Path(prj_pcb_path).name, project_dir)
 
-    return json.dumps({
+    response = {
         "loaded": True,
         "project": _project["name"],
         "sheets": [s["name"] for s in sheets],
@@ -350,7 +350,16 @@ def set_project_dir(project_dir: str) -> str:
         "variants": [v.name for v in prj_data.variants],
         "variant_count": len(prj_data.variants),
         "netlist_updated_utc": _netlist_last_updated,
-    }, indent=2)
+    }
+
+    claude_md_files = (
+        list(Path(project_dir).glob("CLAUDE.md")) +
+        list(Path(project_dir).glob("claude.md"))
+    )
+    if claude_md_files:
+        response["project_context"] = claude_md_files[0].read_text(encoding="utf-8")
+
+    return json.dumps(response, indent=2)
 
 
 # ---------- refresh_netlist ----------
@@ -606,9 +615,9 @@ def get_sheet_context(sheet_name: str | None = None, offset: int = 0) -> str:
     again with sheet_name when following cross-sheet signals. Only call query_net or
     get_component afterward for high-fanout nets (>25 pins) or two-hop tracing.
 
-    Results are paginated by character budget. If the response contains has_more: true,
-    call this tool again with offset=<next_offset from next_hint> and the same sheet_name,
-    and repeat until has_more is false. Accumulate all pages before answering the user."""
+    Results are paginated by character budget. If the response contains has_more:true,
+    call this tool again with the offset from the next: line and the same sheet_name,
+    and repeat until has_more:false. Accumulate all pages before answering the user."""
     try:
         project, netlist, variant_state = _require_project()
     except ValueError as e:

@@ -64,3 +64,43 @@ def test_set_project_dir_success(tmp_path):
     assert result["project"] == "Test"
     assert result["sheet_count"] == 1
     mock_upsert.assert_called_once_with("Test.PrjPcb", str(tmp_path))
+
+
+def _successful_load_result(tmp_path):
+    """Helper: run set_project_dir against a valid project in tmp_path."""
+    prj = tmp_path / "Test.PrjPcb"
+    prj.write_text("[Design]\n[Document1]\nDocumentPath=Sheet1.SchDoc\n", encoding="utf-8")
+    (tmp_path / "Sheet1.SchDoc").write_bytes(b"")
+
+    with patch("main._altium") as mock_altium, \
+         patch("main.parse_prj_pcb") as mock_parse, \
+         patch("main.upsert_registry_entry"):
+
+        from parsers.prj_pcb import VariantDefinition, PrjPcbData
+        mock_parse.return_value = PrjPcbData(
+            sheet_paths=[str(tmp_path / "Sheet1.SchDoc")],
+            variants=[VariantDefinition(name="Default")]
+        )
+        mock_altium.get_status.return_value = {"running": True, "project_file": "Test.PrjPcb"}
+        mock_altium._netlist = {"nets": {}, "pin_to_net": {}, "components": {}}
+        mock_altium.generate_netlist.return_value = True
+
+        from main import set_project_dir
+        return json.loads(set_project_dir(str(tmp_path)))
+
+
+def test_set_project_dir_loads_claude_md(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text("# My Board\n\nSome context here.", encoding="utf-8")
+    result = _successful_load_result(tmp_path)
+    assert result["project_context"] == "# My Board\n\nSome context here."
+
+
+def test_set_project_dir_no_claude_md(tmp_path):
+    result = _successful_load_result(tmp_path)
+    assert "project_context" not in result
+
+
+def test_set_project_dir_claude_md_lowercase(tmp_path):
+    (tmp_path / "claude.md").write_text("# lowercase", encoding="utf-8")
+    result = _successful_load_result(tmp_path)
+    assert result["project_context"] == "# lowercase"
