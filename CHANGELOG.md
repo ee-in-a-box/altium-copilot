@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.2.3] - 2026-05-08
+
+### Added
+- `set_project_dir` now loads from disk cache when the netlist is unchanged — no Altium required.
+  The `.NET` file mtime is stored in the project registry after every successful load or refresh;
+  on subsequent calls the mtime is compared and, if it matches, the project loads instantly
+  without touching Altium. Falls back to the full Altium flow when the cache is absent or stale.
+- `schematic_review` prompt now suggests parallel agent dispatch for large multi-sheet projects,
+  including the exact MCP init sequence each agent needs to self-initialize independently.
+
+### Fixed
+- `get_sheet_context` `has_more` flag now emits lowercase `true`/`false` instead of Python's
+  `True`/`False` so it is consistent with JSON convention and easier to parse in agent prompts.
+- Registry entries with a stale camelCase `lastUsed` key (written by older versions) are now
+  silently cleaned up on the next load — no migration script required.
+- `refresh_netlist` now updates the registry `netlist_mtime` after regeneration so the cache
+  remains valid across sessions after a schematic save.
+
+---
+
 ## [0.2.2] - 2026-05-07
 
 ### Changed

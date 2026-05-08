@@ -108,7 +108,7 @@ def build_sheet_context(netlist: dict, sheet_name: str, variant_state, offset: i
     total = len(sheet_components)
 
     if offset >= total and total > 0:
-        return f"sheet:{sheet_name} total:{total} offset:{offset} has_more:False\nwarning:offset {offset} >= total {total}"
+        return f"sheet:{sheet_name} total:{total} offset:{offset} has_more:false\nwarning:offset {offset} >= total {total}"
 
     # Fill page up to character budget; always include at least one component
     # so offset always advances even if a single component exceeds the budget.
@@ -124,7 +124,8 @@ def build_sheet_context(netlist: dict, sheet_name: str, variant_state, offset: i
     next_offset = offset + len(page_rendered)
     has_more = next_offset < total
 
-    header = f"sheet:{sheet_name} total:{total} offset:{offset} has_more:{has_more}"
+    has_more_str = "true" if has_more else "false"
+    header = f"sheet:{sheet_name} total:{total} offset:{offset} has_more:{has_more_str}"
 
     if has_more:
         remaining = total - next_offset

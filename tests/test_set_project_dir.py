@@ -3,7 +3,9 @@ from unittest.mock import patch
 
 
 def test_set_project_dir_altium_not_running(tmp_path):
-    with patch("main._altium") as mock_altium:
+    (tmp_path / "test.PrjPcb").write_text("", encoding="utf-8")
+    with patch("main._altium") as mock_altium, \
+         patch("main.read_registry", return_value={"projects": []}):
         mock_altium.get_status.return_value = {"running": False}
         from main import set_project_dir
         result = json.loads(set_project_dir(str(tmp_path)))
@@ -11,7 +13,9 @@ def test_set_project_dir_altium_not_running(tmp_path):
 
 
 def test_set_project_dir_no_sheet_open(tmp_path):
-    with patch("main._altium") as mock_altium:
+    (tmp_path / "test.PrjPcb").write_text("", encoding="utf-8")
+    with patch("main._altium") as mock_altium, \
+         patch("main.read_registry", return_value={"projects": []}):
         mock_altium.get_status.return_value = {"running": True, "warning": "no_sheet_open"}
         from main import set_project_dir
         result = json.loads(set_project_dir(str(tmp_path)))
@@ -63,7 +67,7 @@ def test_set_project_dir_success(tmp_path):
     assert result["loaded"] is True
     assert result["project"] == "Test"
     assert result["sheet_count"] == 1
-    mock_upsert.assert_called_once_with("Test.PrjPcb", str(tmp_path))
+    mock_upsert.assert_called_once_with("Test.PrjPcb", str(tmp_path), netlist_mtime=None)
 
 
 def _successful_load_result(tmp_path):

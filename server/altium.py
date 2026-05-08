@@ -193,6 +193,15 @@ class AltiumClient:
             result["warning"] = "no_sheet_open"
         return result
 
+    def load_netlist_from_file(self, net_path: str, project_dir: str) -> None:
+        """Load netlist from an existing .NET file without triggering Altium automation."""
+        netlist = parse_protel_netlist(net_path)
+        try:
+            self._enrich_from_schdocs(Path(project_dir), netlist)
+        except Exception as e:
+            logging.warning("SchDoc enrichment failed: %s", e)
+        self._netlist = netlist
+
     def generate_netlist(self, project_path: str) -> bool:
         project_dir = Path(project_path).parent
         project_name = Path(project_path).stem

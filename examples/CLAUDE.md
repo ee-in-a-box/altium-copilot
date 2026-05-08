@@ -27,14 +27,7 @@ Requirements that define the operating envelope. These don't change with PCB rev
 
 ## How to query the schematic
 
-Use the altium-copilot MCP tools — don't try to remember values from a previous session:
-
-- `get_sheet_context` — all components on a sheet with pin-to-net connections; start here
-- `get_component` — full detail for a specific refdes (e.g. U4, J2)
-- `query_net` — trace a net by name across all sheets
-- `list_variants` — see DNP differences between variants
-
-Active variant matters. Check which variant is selected before reading DNP status.
+Use the altium-copilot MCP tools. Active variant matters. Check which variant is selected before reading DNP status.
 
 ## Where things live
 

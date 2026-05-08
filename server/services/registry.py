@@ -28,16 +28,22 @@ def write_registry(registry: dict) -> None:
     os.replace(tmp, REGISTRY_PATH)
 
 
-def upsert_registry_entry(name: str, dir: str) -> None:
+def upsert_registry_entry(name: str, dir: str, netlist_mtime: float | None = None) -> None:
     registry = read_registry()
     now = datetime.now(timezone.utc).isoformat()
     for entry in registry["projects"]:
         if entry["name"].lower() == name.lower():
             entry["dir"] = dir
             entry["last_used"] = now
+            entry.pop("lastUsed", None)
+            if netlist_mtime is not None:
+                entry["netlist_mtime"] = netlist_mtime
             break
     else:
-        registry["projects"].append({"name": name, "dir": dir, "last_used": now})
+        new_entry: dict = {"name": name, "dir": dir, "last_used": now}
+        if netlist_mtime is not None:
+            new_entry["netlist_mtime"] = netlist_mtime
+        registry["projects"].append(new_entry)
     write_registry(registry)
 
 

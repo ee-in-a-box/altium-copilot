@@ -31,11 +31,15 @@ def test_refresh_netlist_cache_hit():
         json.loads(result)
 
 
-def test_refresh_netlist_regenerated():
+def test_refresh_netlist_regenerated(tmp_path):
     """generate_netlist returns True → returns JSON with refreshed=true and timestamp."""
-    with patch("main._project", {"prj_pcb_path": "/fake/proj.PrjPcb"}), \
+    fake_net = tmp_path / "proj.NET"
+    fake_net.write_text("dummy")
+    fake_project = {"prj_pcb_path": str(tmp_path / "proj.PrjPcb"), "root_dir": str(tmp_path)}
+    with patch("main._project", fake_project), \
          patch("main._altium") as mock_altium, \
-         patch("main._variant_state", MagicMock()):
+         patch("main._variant_state", MagicMock()), \
+         patch("main.upsert_registry_entry"):
         mock_altium._netlist = {"nets": {}, "pin_to_net": {}, "components": {}}
         mock_altium.generate_netlist.return_value = True
         from main import refresh_netlist

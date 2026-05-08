@@ -259,10 +259,72 @@ def detect_altium_project() -> str:
 @mcp.tool(title="Load Project", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 def set_project_dir(project_dir: str) -> str:
     """Load an Altium project from disk. Must be called before any other tool.
-    Parses the .PrjPcb and generates the netlist.
-    Requires Altium Designer to be running with a project open."""
+    If the netlist cache is valid, loads from disk without requiring Altium to be open.
+    Otherwise requires Altium Designer to be running with the project open."""
     global _project, _variant_state, _netlist_last_updated
 
+    # Find .PrjPcb upfront — needed by both the cache shortcut and the Altium flow.
+    prj_files = list(Path(project_dir).glob("*.PrjPcb")) + list(Path(project_dir).glob("*.prjpcb"))
+    if not prj_files:
+        return json.dumps({
+            "error": "no_prjpcb",
+            "message": f"No .PrjPcb file found in {project_dir}. Check the path."
+        })
+    prj_pcb_path = str(prj_files[0])
+    project_name = Path(prj_pcb_path).stem
+
+    # Cache shortcut — if registry has a validated netlist mtime and the .NET file matches,
+    # load from disk without requiring Altium to be running or on a schematic sheet.
+    _registry = read_registry()
+    for _entry in _registry.get("projects", []):
+        if Path(_entry.get("dir", "")).resolve() == Path(project_dir).resolve():
+            _stored_mtime = _entry.get("netlist_mtime")
+            if _stored_mtime is not None:
+                _net_matches = (
+                    list(Path(project_dir).rglob(f"{project_name}.NET")) or
+                    list(Path(project_dir).rglob(f"{project_name}.net"))
+                )
+                if _net_matches:
+                    try:
+                        if abs(_net_matches[0].stat().st_mtime - _stored_mtime) < 0.01:
+                            prj_data = parse_prj_pcb(prj_pcb_path)
+                            if prj_data.sheet_paths:
+                                sheets = [{"name": Path(p).stem, "path": p} for p in prj_data.sheet_paths]
+                                _project = None
+                                _variant_state = None
+                                _altium._netlist = None
+                                _netlist_last_updated = None
+                                _altium.load_netlist_from_file(str(_net_matches[0]), project_dir)
+                                _project = {
+                                    "name": project_name,
+                                    "root_dir": project_dir,
+                                    "prj_pcb_path": prj_pcb_path,
+                                    "sheets": sheets,
+                                }
+                                _variant_state = VariantState(prj_data.variants)
+                                _netlist_last_updated = datetime.now(timezone.utc).isoformat()
+                                upsert_registry_entry(Path(prj_pcb_path).name, project_dir)
+                                response = {
+                                    "loaded": True,
+                                    "project": project_name,
+                                    "sheets": [s["name"] for s in sheets],
+                                    "sheet_count": len(sheets),
+                                    "variants": [v.name for v in prj_data.variants],
+                                    "variant_count": len(prj_data.variants),
+                                    "netlist_updated_utc": _netlist_last_updated,
+                                }
+                                _claude_md = (
+                                    list(Path(project_dir).glob("CLAUDE.md")) +
+                                    list(Path(project_dir).glob("claude.md"))
+                                )
+                                if _claude_md:
+                                    response["project_context"] = _claude_md[0].read_text(encoding="utf-8")
+                                return json.dumps(response, indent=2)
+                    except Exception as e:
+                        logging.warning("Registry cache shortcut failed: %s", e)
+            break
+
+    # Full Altium flow — required when cache is absent or stale.
     status = _altium.get_status()
     if not status.get("running"):
         return json.dumps({
@@ -287,14 +349,6 @@ def set_project_dir(project_dir: str) -> str:
             ),
         })
 
-    prj_files = list(Path(project_dir).glob("*.PrjPcb")) + list(Path(project_dir).glob("*.prjpcb"))
-    if not prj_files:
-        return json.dumps({
-            "error": "no_prjpcb",
-            "message": f"No .PrjPcb file found in {project_dir}. Check the path."
-        })
-
-    prj_pcb_path = str(prj_files[0])
     altium_project_file = status.get("project_file", "")
     if altium_project_file.lower() != Path(prj_pcb_path).name.lower():
         return json.dumps({
@@ -340,7 +394,12 @@ def set_project_dir(project_dir: str) -> str:
     _variant_state = VariantState(prj_data.variants)
     _netlist_last_updated = datetime.now(timezone.utc).isoformat()
 
-    upsert_registry_entry(Path(prj_pcb_path).name, project_dir)
+    _net_matches = (
+        list(Path(project_dir).rglob(f"{project_name}.NET")) or
+        list(Path(project_dir).rglob(f"{project_name}.net"))
+    )
+    _net_mtime = _net_matches[0].stat().st_mtime if _net_matches else None
+    upsert_registry_entry(Path(prj_pcb_path).name, project_dir, netlist_mtime=_net_mtime)
 
     response = {
         "loaded": True,
@@ -381,6 +440,17 @@ def refresh_netlist() -> str:
     if not regenerated:
         return "Netlist is already up to date. If you expected changes, save in Altium and try refresh again."
     _netlist_last_updated = datetime.now(timezone.utc).isoformat()
+    _rn_name = Path(project["prj_pcb_path"]).stem
+    _rn_dir = project["root_dir"]
+    _rn_net = (
+        list(Path(_rn_dir).rglob(f"{_rn_name}.NET")) or
+        list(Path(_rn_dir).rglob(f"{_rn_name}.net"))
+    )
+    upsert_registry_entry(
+        Path(project["prj_pcb_path"]).name,
+        _rn_dir,
+        netlist_mtime=_rn_net[0].stat().st_mtime if _rn_net else None,
+    )
     return json.dumps({"refreshed": True, "netlist_updated_utc": _netlist_last_updated})
 
 
@@ -692,6 +762,12 @@ a scope before doing anything:
   - A specific sheet (e.g. "{first_sheet}")
   - The full project ({n} sheets, one at a time)
 
+For large projects, consider reviewing each sheet as an independent task dispatched
+in parallel — one agent per sheet or functional block. Each agent can self-initialize:
+set_project_dir("{root_dir}") → set_active_variant("{active_variant}") →
+get_sheet_context(sheet_name="<assigned sheet>"), then run Phases 1–2 and return
+their tables. Merge all results into a single Phase 3 report with an added "Sheet" column.
+
 Do not proceed until the user answers.
 
 ---
@@ -795,6 +871,7 @@ def schematic_review() -> str:
         active_variant=active_variant,
         first_sheet=first_sheet,
         n=n,
+        root_dir=_project["root_dir"],
     )
 
 

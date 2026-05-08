@@ -84,7 +84,7 @@ def test_pagination_has_more_and_second_page(monkeypatch):
         "R45": {"mpn": "", "description": "", "value": "", "sheet": "Comms", "pins": {}},
         "U2":  {"mpn": "", "description": "", "value": "", "sheet": "Comms", "pins": {}},
     }}, "Comms", vs, offset=0)
-    assert "has_more:True" in page1
+    assert "has_more:true" in page1
     assert "total:2" in page1
     refs1 = _refdes_list(page1)
     assert len(refs1) == 1  # only one component fits per page
@@ -93,7 +93,7 @@ def test_pagination_has_more_and_second_page(monkeypatch):
         "R45": {"mpn": "", "description": "", "value": "", "sheet": "Comms", "pins": {}},
         "U2":  {"mpn": "", "description": "", "value": "", "sheet": "Comms", "pins": {}},
     }}, "Comms", vs, offset=1)
-    assert "has_more:False" in page2
+    assert "has_more:false" in page2
     refs2 = _refdes_list(page2)
     assert len(refs2) == 1
     assert refs1[0] != refs2[0]  # different component on each page
@@ -103,7 +103,7 @@ def test_pagination_has_more_and_second_page(monkeypatch):
 def test_pagination_offset_out_of_bounds(sample_netlist):
     vs = VariantState([VariantDefinition(name="Default")])
     result = build_sheet_context(sample_netlist, "Comms", vs, offset=100)
-    assert "has_more:False" in result
+    assert "has_more:false" in result
     assert "warning" in result
     assert "100" in result
 
