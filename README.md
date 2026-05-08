@@ -47,32 +47,20 @@ Claude activates these automatically based on what you say — no commands neede
 
 - Windows
 - [Altium Designer](https://www.altium.com/altium-designer) (must be running with a project open)
-- [Claude Desktop](https://claude.ai/download) — works with Pro and Enterprise subscriptions
+- [Claude Desktop](https://claude.com/download) — works with Pro and Enterprise subscriptions
 
 ---
 
 ## Install
 
-### Claude Desktop
-
-1. Install [Claude Desktop](https://claude.ai/download)
+1. Install [Claude Desktop](https://claude.com/download) or [Claude Code](https://claude.com/product/claude-code)
 2. Open **PowerShell** (search `powershell` in the Start menu) and run:
    ```powershell
    irm https://raw.githubusercontent.com/ee-in-a-box/altium-copilot/main/install.ps1 | iex
    ```
 3. Open Altium Designer with your project loaded
-4. Open Claude Desktop and start asking
-
-### Claude Code
-
-1. Install [Claude Code](https://claude.ai/claude-code)
-2. Open **PowerShell** and run:
-   ```powershell
-   irm https://raw.githubusercontent.com/ee-in-a-box/altium-copilot/main/install.ps1 | iex
-   ```
-3. Open Altium Designer with your project loaded
-4. Start a new Claude Code session and start asking
-
+4. Start asking
+ha
 ---
 
 ## Usage
@@ -105,6 +93,22 @@ Ask Claude to package your project:
 Claude calls `package_for_xfn`, which writes a portable SQLite snapshot (`.db`) next to your `.PrjPcb`. Share that file with your team via Confluence, Slack, or a shared drive.
 
 Your teammates open it with **[pcb-copilot](https://github.com/ee-in-a-box/pcb-copilot)** — a companion MCP server that gives Claude the same schematic Q&A tools against the snapshot, no Altium license required. Pairs well with the free [Altium 365 Viewer](https://www.altium.com/altium-365/viewer) for visual reference alongside the AI Q&A.
+
+---
+
+## Give Claude system-level context
+
+The schematic tools tell Claude what's in your design. A `CLAUDE.md` in your project folder tells it *why*.
+
+Drop a `CLAUDE.md` file in the same folder as your `.PrjPcb` file — it's loaded automatically when the project opens. Put in what the schematic can't tell Claude:
+
+- What the board does and where it lives in the system
+- What it interfaces with upstream and downstream
+- Terms that look similar but mean different things (board vs. assembly, vendor naming vs. internal naming)
+- Key requirements — voltage rails, power budget, timing constraints, isolation barriers
+- Pointers to your requirements doc, Confluence page, or block diagram
+
+**Don't have time to write one?** Download the [template](examples/CLAUDE.md), upload it to Claude, and say: *"Use this template and what you can read from my schematic to draft a CLAUDE.md — then ask me one question at a time for anything you can't figure out from the netlist."*
 
 ---
 
