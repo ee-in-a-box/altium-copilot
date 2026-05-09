@@ -60,7 +60,7 @@ Claude activates these automatically based on what you say — no commands neede
    ```
 3. Open Altium Designer with your project loaded
 4. Start asking
-ha
+   
 ---
 
 ## Usage
