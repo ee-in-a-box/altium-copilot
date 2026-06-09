@@ -107,6 +107,58 @@ def test_variant_state_set_variant_not_found():
         state.set_variant("DoesNotExist")
 
 
+def test_format_a_stale_designator_resolved_via_uid():
+    """Stale R? designators with valid UniqueIds must resolve to real refdes after uid map is applied."""
+    content = """\
+[ProjectVariant1]
+Description=Production
+VariationCount=3
+Variation1=Designator=R?|UniqueId=BDGBDKLR|Kind=1|AlternatePart=
+Variation2=Designator=R?|UniqueId=NGNGTOVH|Kind=1|AlternatePart=
+Variation3=Designator=R10|UniqueId=AAAABBBB|Kind=1|AlternatePart=
+"""
+    import tempfile, os
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.PrjPcb', delete=False, encoding='utf-8') as f:
+        f.write(content)
+        tmp = f.name
+    try:
+        result = parse_prj_pcb(tmp)
+        state = VariantState(result.variants)
+        # Before resolution, stale R? entries must NOT appear in dnp_refdes
+        assert not state.is_dnp("R85")
+        assert not state.is_dnp("R98")
+        # Valid designator must already be DNP
+        assert state.is_dnp("R10")
+        # Resolve via uid map
+        state.resolve_dnp_uid({"BDGBDKLR": "R85", "NGNGTOVH": "R98"})
+        assert state.is_dnp("R85"), "R85 should be DNP after uid resolution"
+        assert state.is_dnp("R98"), "R98 should be DNP after uid resolution"
+        assert state.is_dnp("R10"), "R10 (valid designator) should still be DNP"
+    finally:
+        os.unlink(tmp)
+
+
+def test_format_a_uid_backslash_prefix_normalized():
+    """UniqueIds with \\SheetUID\\ComponentUID format should strip the prefix."""
+    content = """\
+[ProjectVariant1]
+Description=Prod
+VariationCount=1
+Variation1=Designator=R?|UniqueId=\\SNDTUXIM\\BDGBDKLR|Kind=1|AlternatePart=
+"""
+    import tempfile, os
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.PrjPcb', delete=False, encoding='utf-8') as f:
+        f.write(content)
+        tmp = f.name
+    try:
+        result = parse_prj_pcb(tmp)
+        state = VariantState(result.variants)
+        state.resolve_dnp_uid({"BDGBDKLR": "R85"})
+        assert state.is_dnp("R85"), "UniqueId prefix should be stripped before lookup"
+    finally:
+        os.unlink(tmp)
+
+
 def test_format_b_variant_parsing():
     content = """\
 [Variation1]

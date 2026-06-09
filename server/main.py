@@ -302,6 +302,12 @@ def set_project_dir(project_dir: str) -> str:
                                     "sheets": sheets,
                                 }
                                 _variant_state = VariantState(prj_data.variants)
+                                _uid_map = {
+                                    comp.get("unique_id"): refdes
+                                    for refdes, comp in (_altium._netlist or {}).get("components", {}).items()
+                                    if comp.get("unique_id")
+                                }
+                                _variant_state.resolve_dnp_uid(_uid_map)
                                 _netlist_last_updated = datetime.now(timezone.utc).isoformat()
                                 upsert_registry_entry(Path(prj_pcb_path).name, project_dir)
                                 response = {
@@ -392,6 +398,12 @@ def set_project_dir(project_dir: str) -> str:
         "sheets": sheets,
     }
     _variant_state = VariantState(prj_data.variants)
+    _uid_map = {
+        comp.get("unique_id"): refdes
+        for refdes, comp in (_altium._netlist or {}).get("components", {}).items()
+        if comp.get("unique_id")
+    }
+    _variant_state.resolve_dnp_uid(_uid_map)
     _netlist_last_updated = datetime.now(timezone.utc).isoformat()
 
     _net_matches = (

@@ -76,6 +76,7 @@ def _make_enriched(meta: "ComponentMeta", comp_pins: dict) -> dict:
         "mpn": meta.mpn,
         "description": meta.description,
         "value": meta.value,
+        "unique_id": meta.unique_id,
         "pins": enriched_pins,
     }
 

@@ -7,6 +7,7 @@ from pathlib import Path
 class VariantDefinition:
     name: str
     dnp_refdes: list[str] = field(default_factory=list)
+    dnp_uid: list[str] = field(default_factory=list)  # UniqueIds for stale R? designators
 
 
 @dataclass
@@ -84,6 +85,11 @@ def _extract_variants(sections: list[tuple[str, list[str]]]) -> list[VariantDefi
     return [VariantDefinition(name="Default")]
 
 
+def _normalize_uid(uid: str) -> str:
+    """Strip \\SheetUID\\ prefix from Altium variant UniqueIds, returning the component UID."""
+    return uid.rsplit("\\", 1)[-1] if "\\" in uid else uid
+
+
 def _extract_format_a(sections: list[tuple[str, list[str]]]) -> list[VariantDefinition]:
     variants: list[VariantDefinition] = []
     for header, lines in sections:
@@ -93,6 +99,7 @@ def _extract_format_a(sections: list[tuple[str, list[str]]]) -> list[VariantDefi
         if not name:
             continue
         dnp: list[str] = []
+        dnp_uid: list[str] = []
         for line in lines:
             m = re.match(r"^\s*Variation\d+=(.+)$", line, re.IGNORECASE)
             if not m:
@@ -101,9 +108,15 @@ def _extract_format_a(sections: list[tuple[str, list[str]]]) -> list[VariantDefi
             designator = props.get("Designator", "")
             kind = props.get("Kind", "")
             alternate = props.get("AlternatePart", "")
-            if designator and kind == "1" and alternate == "":
+            if kind != "1" or alternate != "":
+                continue
+            uid = _normalize_uid(props.get("UniqueId", ""))
+            if designator and "?" not in designator:
                 dnp.append(designator)
-        variants.append(VariantDefinition(name=name, dnp_refdes=dnp))
+            elif uid:
+                # Stale designator — defer resolution to uid map built from schematics
+                dnp_uid.append(uid)
+        variants.append(VariantDefinition(name=name, dnp_refdes=dnp, dnp_uid=dnp_uid))
     return variants or [VariantDefinition(name="Default")]
 
 
@@ -121,6 +134,19 @@ class VariantState:
 
     def is_dnp(self, refdes: str) -> bool:
         return refdes in self._active.dnp_refdes
+
+    def resolve_dnp_uid(self, uid_to_refdes: dict[str, str]) -> None:
+        """Resolve stale DNP UniqueIds to real refdes using the schematic uid map.
+        Call once after schematics are parsed. Safe to call multiple times."""
+        for variant in self._variants:
+            if not variant.dnp_uid:
+                continue
+            resolved = set(variant.dnp_refdes)
+            for uid in variant.dnp_uid:
+                if uid in uid_to_refdes:
+                    resolved.add(uid_to_refdes[uid])
+            variant.dnp_refdes = list(resolved)
+            variant.dnp_uid = []
 
     @property
     def active(self) -> VariantDefinition:

@@ -13,6 +13,7 @@ class ComponentMeta:
     description: str | None = None
     mpn: str | None = None
     value: str | None = None
+    unique_id: str = ""
     pins: dict[str, str] = field(default_factory=dict)  # pin_number -> pin_name
 
 
@@ -108,7 +109,7 @@ def _handle_component(
         # Subsequent part of a multi-part component — map to canonical owner_key
         canonical_owner[owner_key] = uid_seen[uid]
     else:
-        comp = ComponentMeta(description=desc)
+        comp = ComponentMeta(description=desc, unique_id=uid)
         components_by_owner[owner_key] = comp
         canonical_owner[owner_key] = owner_key
         if uid:

@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.2.4] - 2026-06-09
+
+### Fixed
+- Variant DNP detection now correctly resolves components whose designator entry in the
+  `.PrjPcb` variant table is stale (e.g. `R?` — set before annotation ran). The parser
+  captures the stable `UniqueId` for any stale entry and defers resolution until after the
+  schematics are parsed; the `UniqueId → refdes` map built from `.SchDoc` files is then
+  applied to produce the correct DNP list. Previously, such components were silently omitted
+  from the DNP set in all queries and exports.
+
+---
+
 ## [0.2.3] - 2026-05-08
 
 ### Added
