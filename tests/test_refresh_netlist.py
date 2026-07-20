@@ -39,6 +39,7 @@ def test_refresh_netlist_regenerated(tmp_path):
     with patch("main._project", fake_project), \
          patch("main._altium") as mock_altium, \
          patch("main._variant_state", MagicMock()), \
+         patch("main._pcb_session") as mock_pcb_session, \
          patch("main.upsert_registry_entry"):
         mock_altium._netlist = {"nets": {}, "pin_to_net": {}, "components": {}}
         mock_altium.generate_netlist.return_value = True
@@ -49,6 +50,7 @@ def test_refresh_netlist_regenerated(tmp_path):
     # Timestamp is a valid ISO string
     from datetime import datetime
     datetime.fromisoformat(result["netlist_updated_utc"])  # raises ValueError if malformed
+    mock_pcb_session.invalidate.assert_called_once_with()
 
 
 def test_refresh_netlist_generate_failed():

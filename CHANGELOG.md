@@ -3,6 +3,39 @@
 All notable changes to this project will be documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.0] - 2026-07-19
+
+### Added
+- PCB understanding: parse the project's `.PcbDoc` directly (no export step) into a
+  spatial index. New tools:
+  - `get_board_info` — stackup (thickness, dielectric, material), origin, extents, counts
+  - `get_net_pcb` — where a net routes: layers, lengths, vias, pad endpoints; exact net
+    names always resolve to full detail, even when they also match other nets by pattern
+  - `get_net_neighbors` — crosstalk proximity: nearby nets, edge-to-edge distance,
+    parallel run length, broadside overlaps on adjacent copper layers
+  - `query_pcb_region` — what's near a board coordinate, including polygon pour
+    containment
+  - `get_component_placement` — placement, pins, nearest components; resolves
+    multi-channel refdes (`U3` vs `U3A`/`U3B`) via UniqueId + pad-net signature
+  - All four net/region/placement tools annotate results with the active variant's
+    DNP status; `get_net_neighbors`/`query_pcb_region` reject non-copper layer names
+    (e.g. silkscreen) with the valid copper layer list
+- PCB data auto-refreshes on `.PcbDoc` save (mtime-based, no manual refresh)
+- `get_board_info` and polygon-returning tools note that pour outlines reflect the
+  last-saved nominal geometry, not live copper — repour and save in Altium before
+  relying on polygon results for voids, cutouts, or clearances
+
+### Fixed
+- `install.ps1` now verifies Claude Code MCP registration persisted and prints recovery
+  steps when a running session clobbers it
+- Inner copper layers (`Mid1`–`Mid30`) referenced by their Altium positional alias in
+  polygon pour data now resolve correctly — previously these pours were dropped from
+  crosstalk/proximity results entirely
+- `page_netlist.py` high-fanout threshold now matches its documented "more than 25
+  pins" contract (was flagging exactly-25-pin nets)
+
+---
+
 ## [0.2.4] - 2026-06-09
 
 ### Fixed

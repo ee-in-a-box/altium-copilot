@@ -1,4 +1,6 @@
 import json
+from unittest.mock import patch
+
 from main import _package_for_xfn_impl
 
 
@@ -39,15 +41,45 @@ def _netlist():
 
 
 def test_success_response_contains_path(tmp_path):
-    result = _package_for_xfn_impl(_project(tmp_path), _netlist(), _FakeVS(), "0.1.10")
+    with patch("main.mark_xfn_exported") as mark_exported:
+        result = _package_for_xfn_impl(
+            _project(tmp_path),
+            _netlist(),
+            _FakeVS(),
+            "0.1.10",
+        )
     expected_path = str(tmp_path / "MotorController-pcb-copilot.db")
     assert f"Exported to: {expected_path}" in result
+    mark_exported.assert_called_once_with("MotorController.PrjPcb")
 
 
 def test_success_response_contains_sharing_guidance(tmp_path):
-    result = _package_for_xfn_impl(_project(tmp_path), _netlist(), _FakeVS(), "0.1.0")
+    with patch("main.mark_xfn_exported"):
+        result = _package_for_xfn_impl(
+            _project(tmp_path),
+            _netlist(),
+            _FakeVS(),
+            "0.1.0",
+        )
     assert "Slack" in result
     assert "Git" in result
+
+
+def test_registry_mark_failure_does_not_hide_successful_export(tmp_path):
+    with patch(
+        "main.mark_xfn_exported",
+        side_effect=PermissionError("registry locked"),
+    ):
+        result = _package_for_xfn_impl(
+            _project(tmp_path),
+            _netlist(),
+            _FakeVS(),
+            "0.1.0",
+        )
+
+    assert "Exported to:" in result
+    assert "Warning:" in result
+    assert "registry locked" in result
 
 
 def test_duplicate_refdes_returns_error_json(tmp_path):

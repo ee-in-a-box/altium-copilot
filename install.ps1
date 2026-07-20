@@ -118,10 +118,21 @@ if ($mcpbExtension) {
 }
 
 # --- Register with Claude Code ---
-# Resolve claude.exe via PATH first, then fall back to known install locations.
+# Resolve an executable launcher via PATH first, then fall back to known locations.
 # The official installer (https://claude.ai/install.ps1) puts it under .local\bin,
 # which is not on PATH in a fresh elevated PowerShell session.
-$claudeExe = (Get-Command claude -ErrorAction SilentlyContinue).Source
+$claudeExe = (Get-Command claude.exe -ErrorAction SilentlyContinue).Source
+if (-not $claudeExe) {
+    # npm/nvm installs also expose claude.ps1, which may be blocked by the
+    # machine's execution policy. Prefer the directly invokable .cmd shim.
+    $claudeExe = (Get-Command claude.cmd -ErrorAction SilentlyContinue).Source
+}
+if (-not $claudeExe) {
+    $claudeExe = (
+        Get-Command claude -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    ).Source
+}
 if (-not $claudeExe) {
     $candidates = @(
         "$env:USERPROFILE\.local\bin\claude.exe",
@@ -131,10 +142,27 @@ if (-not $claudeExe) {
 }
 if ($claudeExe) {
     Write-Ok "Registering with Claude Code..."
-    # Remove first so re-runs idempotently update the absolute path.
     & $claudeExe mcp remove --scope user altium-copilot 2>$null
     & $claudeExe mcp add    --scope user altium-copilot -- $exeDest
-    Write-Ok "Done. Altium Copilot is ready in Claude Code."
+
+    # Verify the entry actually landed. Running Claude Code sessions rewrite
+    # ~/.claude.json wholesale and can clobber the add (last writer wins).
+    $verified = $false
+    try {
+        $registration = (& $claudeExe mcp get altium-copilot 2>$null | Out-String)
+        $verified = (
+            $LASTEXITCODE -eq 0 -and
+            $registration -match [regex]::Escape($exeDest)
+        )
+    } catch {}
+    if ($verified) {
+        Write-Ok "Done. Altium Copilot is ready in Claude Code."
+    } else {
+        Write-Warn "Claude Code registration did not persist."
+        Write-Host "This usually happens when a Claude Code session is running during install."
+        Write-Host "Fix: close all Claude Code sessions (VS Code windows / terminals), then run:"
+        Write-Host ('  claude mcp add --scope user altium-copilot -- "{0}"' -f $exeDest)
+    }
 } else {
     Write-Warn "Claude Code not found — skipping MCP registration."
 }

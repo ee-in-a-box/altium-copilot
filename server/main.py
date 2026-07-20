@@ -1,12 +1,14 @@
 # server/main.py
 import json
 import logging
+import math
 import os
 import re
 import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
 # When bundled with PyInstaller, vendor is embedded — no sys.path injection needed.
@@ -23,12 +25,16 @@ try:
     from parsers.prj_pcb import parse_prj_pcb, VariantState
     from services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
     from services.page_netlist import build_sheet_context, MAX_RESULT_SIZE_CHARS
+    from parsers.pcb_doc import parse_pcb_doc
+    from services.pcb_index import PcbIndex
     from export import export_project, HIGH_FANOUT_THRESHOLD
 except ImportError:
     from server.altium import AltiumClient
     from server.parsers.prj_pcb import parse_prj_pcb, VariantState
+    from server.parsers.pcb_doc import parse_pcb_doc
     from server.services.registry import read_registry, upsert_registry_entry, mark_xfn_exported
     from server.services.page_netlist import build_sheet_context, MAX_RESULT_SIZE_CHARS
+    from server.services.pcb_index import PcbIndex
     from server.export import export_project, HIGH_FANOUT_THRESHOLD
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -163,6 +169,38 @@ Do not call get_component or query_net individually for components already visib
 sheet context you have already loaded.
 Do not call get_sheet_context on the same sheet twice in the same conversation turn.
 
+## PCB / Layout Questions
+
+For questions about the physical board (where nets route, layers, stackup, crosstalk,
+component locations, distances):
+
+1. **Call get_board_info first** — it returns the stackup, origin, extents, units, and
+   data freshness. State the origin and units when discussing any coordinates.
+2. get_net_pcb — "where does net X route": layers, lengths, vias, pad endpoints.
+3. get_net_neighbors — crosstalk questions: "what runs near X". Proximity results are
+   geometric facts; judging whether coupling matters needs rise times, impedances, and
+   termination knowledge — ask the user rather than guessing severity.
+4. query_pcb_region — "what is at/near (x, y)".
+5. get_component_placement — "where is U12, what's around it".
+
+Net names are shared between schematic and PCB — pivot freely between query_net
+(connectivity) and get_net_pcb (physical routing). Component refdes may differ on
+multi-channel designs: tools return both `refdes` (PCB) and `sch_refdes` (netlist);
+a logical refdes like U3 may return multiple physical instances with channel paths.
+
+PCB data reflects the last SAVE of the .PcbDoc in Altium and refreshes automatically —
+if the user made layout changes, ask them to save (Ctrl+S), then call the tool again.
+get_board_info reports both PCB and netlist timestamps; if they disagree wildly, warn
+the user the schematic and layout may be out of sync.
+
+Before relying on polygon results, ask the user to repour polygons and save the PcbDoc.
+The tools model saved nominal polygon outlines, not final region/fill copper; voids,
+cutouts, removed islands, and clearances must be verified in Altium.
+
+If the user wants to know where something is visually, give coordinates relative to the
+origin and offer to interpret a screenshot or photo they paste for orientation — the
+server never renders images.
+
 ## Behavioral Guidelines
 
 - **Think Before Proposing:** State your assumptions explicitly. If multiple interpretations of the circuit exist, present them—don't pick silently.
@@ -190,6 +228,9 @@ otherwise your data may be stale.
 """
 
 mcp = FastMCP("altium-copilot", instructions=SERVER_INSTRUCTIONS)
+# FastMCP 1.27 reports its framework version unless the low-level server
+# version is explicitly set.
+mcp._mcp_server.version = _read_version()
 
 # ---------- module-level state ----------
 _altium: AltiumClient = AltiumClient()
@@ -202,6 +243,69 @@ def _require_project():
     if _project is None or _altium._netlist is None or _variant_state is None:
         raise ValueError("No project loaded. Call set_project_dir first.")
     return _project, _altium._netlist, _variant_state
+
+
+class PcbSession:
+    """Lazy-loading, mtime-cached PCB index for the loaded project."""
+
+    def __init__(self):
+        self._index = None
+        self._path: str | None = None
+        self._file_signature: tuple[int, int] | None = None
+        self._netlist_ref: dict | None = None
+
+    def invalidate(self) -> None:
+        """Drop parsed PCB state when its schematic mapping input changes."""
+        self._index = None
+        self._path = None
+        self._file_signature = None
+        self._netlist_ref = None
+
+    def _load(self, path: str, netlist: dict):
+        return PcbIndex(parse_pcb_doc(path), netlist)
+
+    def get(self, project: dict, netlist: dict):
+        """Return (index, None) or (None, structured_error)."""
+        paths = project.get("pcb_doc_paths") or []
+        if not paths:
+            return None, {
+                "error": "no_pcb_document",
+                "message": (
+                    f"Project '{project.get('name')}' lists no .PcbDoc. "
+                    "PCB tools need a board document in the project."
+                ),
+            }
+        path = paths[0]
+        pcb_path = Path(path)
+        if not pcb_path.exists():
+            return None, {
+                "error": "pcb_file_missing",
+                "message": f"PCB document not found on disk: {path}",
+            }
+        stat = pcb_path.stat()
+        file_signature = (stat.st_mtime_ns, stat.st_size)
+        if (
+            self._index is not None
+            and self._path == path
+            and self._file_signature == file_signature
+            and self._netlist_ref is netlist
+        ):
+            return self._index, None
+        try:
+            index = self._load(path, netlist)
+        except Exception as error:
+            return None, {
+                "error": "pcb_parse_failed",
+                "message": str(error),
+            }
+        self._index = index
+        self._path = path
+        self._file_signature = file_signature
+        self._netlist_ref = netlist
+        return index, None
+
+
+_pcb_session = PcbSession()
 
 
 # ---------- detect_altium_project ----------
@@ -294,12 +398,14 @@ def set_project_dir(project_dir: str) -> str:
                                 _variant_state = None
                                 _altium._netlist = None
                                 _netlist_last_updated = None
+                                _pcb_session.__init__()
                                 _altium.load_netlist_from_file(str(_net_matches[0]), project_dir)
                                 _project = {
                                     "name": project_name,
                                     "root_dir": project_dir,
                                     "prj_pcb_path": prj_pcb_path,
                                     "sheets": sheets,
+                                    "pcb_doc_paths": prj_data.pcb_doc_paths,
                                 }
                                 _variant_state = VariantState(prj_data.variants)
                                 _uid_map = {
@@ -372,6 +478,7 @@ def set_project_dir(project_dir: str) -> str:
     _variant_state = None
     _altium._netlist = None
     _netlist_last_updated = None
+    _pcb_session.__init__()
 
     prj_data = parse_prj_pcb(prj_pcb_path)
 
@@ -396,6 +503,7 @@ def set_project_dir(project_dir: str) -> str:
         "root_dir": project_dir,
         "prj_pcb_path": prj_pcb_path,
         "sheets": sheets,
+        "pcb_doc_paths": prj_data.pcb_doc_paths,
     }
     _variant_state = VariantState(prj_data.variants)
     _uid_map = {
@@ -451,6 +559,7 @@ def refresh_netlist() -> str:
         return json.dumps({"error": "generate_failed", "message": str(e)})
     if not regenerated:
         return "Netlist is already up to date. If you expected changes, save in Altium and try refresh again."
+    _pcb_session.invalidate()
     _netlist_last_updated = datetime.now(timezone.utc).isoformat()
     _rn_name = Path(project["prj_pcb_path"]).stem
     _rn_dir = project["root_dir"]
@@ -763,6 +872,489 @@ def set_active_variant(variant_name: str) -> str:
     return _set_active_variant_impl(variant_state, variant_name)
 
 
+def _convert_units(obj, to_mm: bool, inside_mil: bool = False):
+    """Convert unit-explicit mil values and containers to millimeters."""
+    if not to_mm:
+        return obj
+    if isinstance(obj, dict):
+        converted = {}
+        for key, value in obj.items():
+            is_mil_key = key.endswith("_mil")
+            new_key = key[:-4] + "_mm" if is_mil_key else key
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+            ):
+                converted[new_key] = (
+                    round(value * 0.0254, 4)
+                    if is_mil_key or inside_mil
+                    else value
+                )
+            else:
+                converted[new_key] = _convert_units(
+                    value,
+                    to_mm,
+                    inside_mil or is_mil_key,
+                )
+        return converted
+    if isinstance(obj, list):
+        return [
+            _convert_units(value, to_mm, inside_mil)
+            for value in obj
+        ]
+    if (
+        isinstance(obj, (int, float))
+        and not isinstance(obj, bool)
+        and inside_mil
+    ):
+        return round(obj * 0.0254, 4)
+    return obj
+
+
+PcbUnits = Literal["mil", "mm"]
+
+
+def _pcb_units(index, units: PcbUnits | None) -> tuple[bool, str]:
+    resolved = (units or index.pcb.board.display_unit).lower()
+    if resolved not in {"mil", "mm"}:
+        raise ValueError("units must be 'mil' or 'mm'")
+    return resolved == "mm", resolved
+
+
+def _pcb_units_or_error(index, units: PcbUnits | None):
+    try:
+        to_mm, resolved = _pcb_units(index, units)
+    except (AttributeError, ValueError):
+        return None, None, {
+            "error": "invalid_units",
+            "message": "units must be 'mil' or 'mm'.",
+        }
+    return to_mm, resolved, None
+
+
+def _input_to_mil(value: float, units: str) -> float:
+    return value / 0.0254 if units == "mm" else value
+
+
+def _finite_nonnegative(value: float) -> bool:
+    return math.isfinite(value) and value >= 0.0
+
+
+PCB_POLYGON_GEOMETRY_NOTE = (
+    "Repour polygons in Altium and save the PcbDoc before relying on polygon "
+    "results. These tools model saved nominal polygon outlines, not final "
+    "region/fill copper; verify voids, cutouts, removed islands, and "
+    "clearances in Altium."
+)
+
+
+def _annotate_dnp(records: list[dict]) -> None:
+    if _variant_state is None:
+        return
+    for record in records:
+        refdes = record.get("sch_refdes") or record.get("refdes")
+        record["dnp"] = bool(refdes and _variant_state.is_dnp(refdes))
+
+
+@mcp.tool(
+    title="Get Board Info",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    meta={"anthropic/maxResultSizeChars": QUERY_NET_MAX_RESULT_SIZE_CHARS},
+)
+def get_board_info(units: PcbUnits | None = None) -> str:
+    """Return board geometry, stackup, counts, and data freshness.
+
+    units controls returned coordinates and lengths; it defaults to the
+    board's display unit.
+    """
+    try:
+        project, netlist, _ = _require_project()
+    except ValueError as error:
+        return json.dumps({"error": "no_project", "message": str(error)})
+    index, error = _pcb_session.get(project, netlist)
+    if error:
+        return json.dumps(error)
+    board = index.pcb.board
+    to_mm, unit_name, units_error = _pcb_units_or_error(index, units)
+    if units_error:
+        return json.dumps(units_error)
+    sides = {
+        row["side"]: row["c"]
+        for row in index.db.execute(
+            "SELECT side, COUNT(*) c FROM components GROUP BY side"
+        )
+    }
+    copper_bbox = index.db.execute(
+        "SELECT MIN(minx) a, MIN(miny) b, "
+        "MAX(maxx) c, MAX(maxy) d FROM prims"
+    ).fetchone()
+    if board.outline_vertices:
+        outline_x = [
+            vertex[0] for vertex in board.outline_vertices
+        ]
+        outline_y = [
+            vertex[1] for vertex in board.outline_vertices
+        ]
+        board_bbox = {
+            "minx_mil": min(outline_x),
+            "miny_mil": min(outline_y),
+            "maxx_mil": max(outline_x),
+            "maxy_mil": max(outline_y),
+        }
+        extents_source = "board_outline"
+    else:
+        board_bbox = {
+            "minx_mil": copper_bbox["a"],
+            "miny_mil": copper_bbox["b"],
+            "maxx_mil": copper_bbox["c"],
+            "maxy_mil": copper_bbox["d"],
+        }
+        extents_source = "copper"
+    stackup = [
+        {
+            "name": layer.name,
+            "kind": layer.kind,
+            "stack_order": layer.stack_order,
+            "copper_thick_mil": layer.copper_thick_mil,
+            "diel_height_mil": layer.diel_height_mil,
+            "diel_const": layer.diel_const,
+            "material": layer.material,
+        }
+        for layer in board.layers
+        if layer.stack_order is not None
+    ]
+    pcb_path = Path(project["pcb_doc_paths"][0])
+    result = {
+        "pcb_doc": pcb_path.name,
+        "last_saved_utc": datetime.fromtimestamp(
+            pcb_path.stat().st_mtime,
+            tz=timezone.utc,
+        ).isoformat(),
+        "units": unit_name,
+        "origin_mil": {
+            "x_mil": board.origin_x,
+            "y_mil": board.origin_y,
+        },
+        "copper_extents_mil": {
+            "minx_mil": copper_bbox["a"],
+            "miny_mil": copper_bbox["b"],
+            "maxx_mil": copper_bbox["c"],
+            "maxy_mil": copper_bbox["d"],
+        },
+        "board_extents_mil": board_bbox,
+        "extents_source": extents_source,
+        "stackup_source": board.stackup_source,
+        "stackup": stackup,
+        "netlist_updated_utc": _netlist_last_updated,
+        "counts": index.counts(),
+        "components_per_side": sides,
+        "refdes_mapping_unmatched": index.unmatched_components(),
+        "warnings": index.pcb.warnings,
+        "skipped_records": index.pcb.skipped_records,
+    }
+    if result["counts"]["pours"]:
+        result["analysis_notes"] = [PCB_POLYGON_GEOMETRY_NOTE]
+    if len(project["pcb_doc_paths"]) > 1:
+        result["note"] = (
+            f"Project lists {len(project['pcb_doc_paths'])} PcbDocs; "
+            f"using '{pcb_path.name}'. Others: "
+            + ", ".join(
+                Path(path).name
+                for path in project["pcb_doc_paths"][1:]
+            )
+        )
+    return json.dumps(_convert_units(result, to_mm), indent=2)
+
+
+def _pcb_index_or_error():
+    try:
+        project, netlist, _ = _require_project()
+    except ValueError as error:
+        return None, {"error": "no_project", "message": str(error)}
+    return _pcb_session.get(project, netlist)
+
+
+def _resolve_layer_or_error(index, layer: str | None):
+    if layer is None:
+        return None, None
+    resolved = index.resolve_layer(layer)
+    if resolved is None:
+        return None, {
+            "error": "layer_not_found",
+            "available_layers": [
+                board_layer.name
+                for board_layer in index.pcb.board.layers
+                if board_layer.kind == "copper"
+            ],
+            "message": f"Layer '{layer}' not found.",
+        }
+    return resolved, None
+
+
+def _safe_regex(pattern: str) -> bool:
+    try:
+        re.compile(pattern, re.IGNORECASE)
+        return True
+    except re.error:
+        return False
+
+
+@mcp.tool(
+    title="Get Net PCB Routing",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    meta={"anthropic/maxResultSizeChars": QUERY_NET_MAX_RESULT_SIZE_CHARS},
+)
+def get_net_pcb(net: str, units: PcbUnits | None = None) -> str:
+    """Return physical PCB routing details for exact or regex-matched nets."""
+    index, error = _pcb_index_or_error()
+    if error:
+        return json.dumps(error)
+    to_mm, _, units_error = _pcb_units_or_error(index, units)
+    if units_error:
+        return json.dumps(units_error)
+    exact = next(
+        (
+            name
+            for name in index.pcb.nets
+            if name.lower() == net.lower()
+        ),
+        None,
+    )
+    matches = (
+        [exact]
+        if exact
+        else (
+            [
+                name
+                for name in index.pcb.nets
+                if re.search(net, name, re.IGNORECASE)
+            ]
+            if _safe_regex(net)
+            else []
+        )
+    )
+    if not matches:
+        return json.dumps(
+            {
+                "error": "net_not_found",
+                "pattern": net,
+                "message": f"No PCB nets matching '{net}'.",
+            }
+        )
+    if len(matches) > QUERY_NET_MAX_RESULTS:
+        return json.dumps(
+            {
+                "error": "too_many_matches",
+                "message": (
+                    f"Pattern matched {len(matches)} nets "
+                    f"(limit {QUERY_NET_MAX_RESULTS}). Be more specific."
+                ),
+            }
+        )
+    if len(matches) > 1:
+        compact = []
+        for match in matches:
+            summary = index.net_summary(match)
+            compact.append(
+                {
+                    "net": summary["net"],
+                    "layers": [
+                        layer["layer"] for layer in summary["layers"]
+                    ],
+                    "total_length_mil": round(
+                        sum(
+                            layer["length_mil"]
+                            for layer in summary["layers"]
+                        ),
+                        1,
+                    ),
+                    "via_count": summary["via_count"],
+                    "pad_count": summary["pad_count"],
+                }
+            )
+        return json.dumps(
+            _convert_units(
+                {
+                    "match_count": len(compact),
+                    "nets": compact,
+                    "hint": (
+                        "Call get_net_pcb with an exact name "
+                        "for full detail."
+                    ),
+                },
+                to_mm,
+            ),
+            indent=2,
+        )
+    summary = index.net_summary(matches[0])
+    _annotate_dnp(summary["pads"])
+    if summary["pour_count"]:
+        summary["geometry_note"] = PCB_POLYGON_GEOMETRY_NOTE
+    return json.dumps(_convert_units(summary, to_mm), indent=2)
+
+
+@mcp.tool(
+    title="Get Net Neighbors",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    meta={"anthropic/maxResultSizeChars": QUERY_NET_MAX_RESULT_SIZE_CHARS},
+)
+def get_net_neighbors(
+    net: str,
+    distance: float | None = None,
+    layer: str | None = None,
+    units: PcbUnits | None = None,
+) -> str:
+    """Return same-layer proximity and adjacent-layer overlap for a PCB net.
+
+    An explicit distance is expressed in units (default: board display unit).
+    Omitting distance uses a physical default of 10 mil.
+    """
+    index, error = _pcb_index_or_error()
+    if error:
+        return json.dumps(error)
+    to_mm, input_units, units_error = _pcb_units_or_error(index, units)
+    if units_error:
+        return json.dumps(units_error)
+    if distance is not None and not _finite_nonnegative(distance):
+        return json.dumps(
+            {
+                "error": "invalid_distance",
+                "message": "distance must be finite and nonnegative.",
+            }
+        )
+    distance_mil = (
+        10.0
+        if distance is None
+        else _input_to_mil(distance, input_units)
+    )
+    layer_id, layer_error = _resolve_layer_or_error(index, layer)
+    if layer_error:
+        return json.dumps(layer_error)
+    result = index.net_neighbors(
+        net,
+        distance=distance_mil,
+        layer=layer_id,
+    )
+    if result is None:
+        return json.dumps(
+            {
+                "error": "net_not_found",
+                "message": (
+                    f"Net '{net}' not found on the PCB. "
+                    "Use get_net_pcb with a pattern to discover names."
+                ),
+            }
+        )
+    result["geometry_note"] = PCB_POLYGON_GEOMETRY_NOTE
+    return json.dumps(_convert_units(result, to_mm), indent=2)
+
+
+@mcp.tool(
+    title="Query PCB Region",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    meta={"anthropic/maxResultSizeChars": QUERY_NET_MAX_RESULT_SIZE_CHARS},
+)
+def query_pcb_region(
+    x: float,
+    y: float,
+    radius: float | None = None,
+    layer: str | None = None,
+    units: PcbUnits | None = None,
+) -> str:
+    """Return nets, components, and pours near a board coordinate.
+
+    x, y, and an explicit radius are expressed in units (default: board
+    display unit). Omitting radius uses a physical default of 50 mil.
+    """
+    index, error = _pcb_index_or_error()
+    if error:
+        return json.dumps(error)
+    to_mm, input_units, units_error = _pcb_units_or_error(index, units)
+    if units_error:
+        return json.dumps(units_error)
+    if not (math.isfinite(x) and math.isfinite(y)):
+        return json.dumps(
+            {
+                "error": "invalid_coordinate",
+                "message": "x and y must be finite.",
+            }
+        )
+    if radius is not None and not _finite_nonnegative(radius):
+        return json.dumps(
+            {
+                "error": "invalid_radius",
+                "message": "radius must be finite and nonnegative.",
+            }
+        )
+    x_mil = _input_to_mil(x, input_units)
+    y_mil = _input_to_mil(y, input_units)
+    radius_mil = (
+        50.0
+        if radius is None
+        else _input_to_mil(radius, input_units)
+    )
+    layer_id, layer_error = _resolve_layer_or_error(index, layer)
+    if layer_error:
+        return json.dumps(layer_error)
+    result = index.region_query(
+        x_mil,
+        y_mil,
+        radius_mil,
+        layer=layer_id,
+    )
+    _annotate_dnp(result["components"])
+    result["geometry_note"] = PCB_POLYGON_GEOMETRY_NOTE
+    return json.dumps(_convert_units(result, to_mm), indent=2)
+
+
+@mcp.tool(
+    title="Get Component Placement",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    meta={"anthropic/maxResultSizeChars": QUERY_NET_MAX_RESULT_SIZE_CHARS},
+)
+def get_component_placement(
+    refdes: str,
+    units: PcbUnits | None = None,
+) -> str:
+    """Return physical placement and nearby-component details."""
+    index, error = _pcb_index_or_error()
+    if error:
+        return json.dumps(error)
+    to_mm, _, units_error = _pcb_units_or_error(index, units)
+    if units_error:
+        return json.dumps(units_error)
+    instances = index.component_detail(refdes)
+    if not instances:
+        try:
+            regex = re.compile(refdes, re.IGNORECASE)
+            candidates = sorted(
+                {
+                    row["refdes"]
+                    for row in index.db.execute(
+                        "SELECT DISTINCT refdes FROM components "
+                        "WHERE refdes IS NOT NULL"
+                    )
+                    if regex.search(row["refdes"])
+                }
+            )[:10]
+        except re.error:
+            candidates = []
+        return json.dumps(
+            {
+                "error": "component_not_found",
+                "message": f"'{refdes}' not on the PCB.",
+                "suggestions": candidates,
+            }
+        )
+    _annotate_dnp(instances)
+    for instance in instances:
+        _annotate_dnp(instance["nearest_components"])
+    return json.dumps(
+        _convert_units({"instances": instances}, to_mm),
+        indent=2,
+    )
+
+
 
 SCHEMATIC_REVIEW_PROMPT = """\
 Project: {name}
@@ -985,11 +1577,23 @@ def _package_for_xfn_impl(
     except Exception as e:
         return json.dumps({"error": "export_failed", "message": str(e)})
     prj_pcb_name = Path(project["prj_pcb_path"]).name
-    mark_xfn_exported(prj_pcb_name)
+    registry_warning = ""
+    try:
+        mark_xfn_exported(prj_pcb_name)
+    except Exception as error:
+        logging.warning(
+            "Snapshot exported but registry update failed: %s",
+            error,
+        )
+        registry_warning = (
+            "\nWarning: snapshot export succeeded, but the local registry "
+            f"could not be updated: {error}"
+        )
     return (
         f"Exported to: {db_path}\n"
         "Share this file with your cross-functional team via Slack or a shared drive.\n"
         "Do not commit it to Git — it is a binary snapshot and will cause repository bloat."
+        f"{registry_warning}"
     )
 
 

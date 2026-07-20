@@ -133,3 +133,15 @@ tests/             — pytest suite
 
 The GitHub Release contains only `altium-copilot.exe` and `checksums.txt`.
 Python source, tests, docs, and the `.venv` are never shipped to end users.
+
+## PCB parser oracle test (optional, local-only)
+
+`tests/test_oracle_ipc2581.py` cross-validates the `.PcbDoc` parser against an
+IPC-2581 export of the same board. It is skipped unless you set:
+
+- `ALTIUM_COPILOT_ORACLE_PCBDOC` — path to any `.PcbDoc` you own
+- `ALTIUM_COPILOT_ORACLE_CVG` — path to its IPC-2581 rev B export
+  (Altium: File → Fabrication Outputs → IPC-2581, "Merge Net-Tie Nets" unchecked)
+
+Use any board of your own. Never commit oracle files or values derived from them—
+they are private design data. Run this before releases that touch `pcb_doc.py`.

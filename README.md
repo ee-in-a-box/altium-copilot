@@ -29,6 +29,10 @@ Part of the [ee-in-a-box](https://github.com/ee-in-a-box) suite.
 | *"What's different in the Prototype variant?"* | Compares DNP lists between variants |
 | *"Review this power supply circuit"* | Structured multi-phase schematic review |
 | *"What does U12 do?"* | Pulls component, all pins, connected nets |
+| *"Where does RMII_REF_CLK route?"* | Layers, routed length per layer, vias, endpoints |
+| *"What runs within 10 mil of CLK on L3?"* | Crosstalk proximity with parallel run lengths |
+| *"Describe my stackup"* | Layer-by-layer: copper weight, dielectric, material |
+| *"Where is U12? What's next to it?"* | Placement, side, rotation, nearest parts |
 
 ---
 
@@ -40,6 +44,15 @@ Claude activates these automatically based on what you say — no commands neede
 |---|---|---|
 | `schematic_review` | *"review this"*, *"is this correct?"*, *"check my power supply"* | 3-phase structured audit: Claude reads datasheets and confirms its understanding before flagging anything. Every finding cites a datasheet value or a netlist fact. Report saved to markdown. |
 | `brainstorm_circuits` | *"I want to add a new circuit, lets brainstorm"*, *"How would i improve this circuit"*, *"What power supply topology should I use here?"*  | 5-phase design session: reads your loaded schematic first, then asks one question at a time — problem, constraints, proposes 2–3 topologies with tradeoffs, checks your existing design before recommending anything new. |
+
+---
+
+## 🆕 PCB awareness
+
+Altium Copilot now reads your `.PcbDoc` directly. Ask where nets
+route, what's near what (crosstalk), your full stackup, and where components sit.
+Data refreshes automatically every time you save the board in Altium. Read-only,
+like everything else.
 
 ---
 

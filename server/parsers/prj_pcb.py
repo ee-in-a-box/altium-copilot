@@ -14,6 +14,7 @@ class VariantDefinition:
 class PrjPcbData:
     sheet_paths: list[str]
     variants: list[VariantDefinition]
+    pcb_doc_paths: list[str] = field(default_factory=list)
 
 
 def parse_prj_pcb(path: str) -> PrjPcbData:
@@ -22,7 +23,12 @@ def parse_prj_pcb(path: str) -> PrjPcbData:
     sections = _split_sections(text)
     sheet_paths = _extract_sheets(sections, project_dir)
     variants = _extract_variants(sections)
-    return PrjPcbData(sheet_paths=sheet_paths, variants=variants)
+    pcb_doc_paths = _extract_documents(sections, project_dir, ".pcbdoc")
+    return PrjPcbData(
+        sheet_paths=sheet_paths,
+        variants=variants,
+        pcb_doc_paths=pcb_doc_paths,
+    )
 
 
 def _split_sections(text: str) -> list[tuple[str, list[str]]]:
@@ -60,8 +66,12 @@ def _parse_inline_props(s: str) -> dict[str, str]:
     return result
 
 
-def _extract_sheets(sections: list[tuple[str, list[str]]], project_dir: Path) -> list[str]:
-    sheets: list[str] = []
+def _extract_documents(
+    sections: list[tuple[str, list[str]]],
+    project_dir: Path,
+    suffix: str,
+) -> list[str]:
+    paths: list[str] = []
     for header, lines in sections:
         if not re.match(r"^Document\d+$", header, re.IGNORECASE):
             continue
@@ -69,11 +79,14 @@ def _extract_sheets(sections: list[tuple[str, list[str]]], project_dir: Path) ->
         if not raw:
             continue
         normalized = raw.replace("\\", "/")
-        if not normalized.lower().endswith(".schdoc"):
+        if not normalized.lower().endswith(suffix):
             continue
-        abs_path = str((project_dir / normalized).resolve())
-        sheets.append(abs_path)
-    return sheets
+        paths.append(str((project_dir / normalized).resolve()))
+    return paths
+
+
+def _extract_sheets(sections: list[tuple[str, list[str]]], project_dir: Path) -> list[str]:
+    return _extract_documents(sections, project_dir, ".schdoc")
 
 
 def _extract_variants(sections: list[tuple[str, list[str]]]) -> list[VariantDefinition]:

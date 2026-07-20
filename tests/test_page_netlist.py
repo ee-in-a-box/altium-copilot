@@ -113,3 +113,22 @@ def test_pagination_negative_offset_clamped(sample_netlist):
     result_neg = build_sheet_context(sample_netlist, "Comms", vs, offset=-5)
     result_zero = build_sheet_context(sample_netlist, "Comms", vs, offset=0)
     assert result_neg == result_zero
+
+
+def test_25_pin_net_is_not_marked_high_fanout():
+    components = {
+        f"R{index}": {
+            "sheet": "Signals",
+            "pins": {"1": {"net": "BORDERLINE"}},
+        }
+        for index in range(25)
+    }
+    vs = VariantState([VariantDefinition(name="Default")])
+
+    result = build_sheet_context(
+        {"components": components},
+        "Signals",
+        vs,
+    )
+
+    assert "[HF:25]" not in result

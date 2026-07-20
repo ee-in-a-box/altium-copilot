@@ -84,7 +84,7 @@ def build_sheet_context(netlist: dict, sheet_name: str, variant_state, offset: i
                 base["name"] = pin_obj["name"]
 
             all_pins = net_index.get(net, [])
-            if len(all_pins) >= _HIGH_FANOUT_THRESHOLD:
+            if len(all_pins) > _HIGH_FANOUT_THRESHOLD:
                 pins[pin_num] = {**base, "high_fanout": True, "fanout": len(all_pins)}
             else:
                 neighbors = [

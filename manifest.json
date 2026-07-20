@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "altium-copilot",
   "display_name": "Altium Copilot",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "AI copilot for Altium Designer (Windows only). Reads live schematics from a running Altium instance — trace nets, inspect components, switch variants, and run structured design reviews, all from Claude. Requires Altium Designer installed and running on Windows.",
   "author": {
     "name": "Maisam Pyarali",
@@ -35,7 +35,12 @@
     { "name": "set_active_variant", "description": "Switch the active variant by name. DNP annotations update immediately and all subsequent tool calls reflect the new variant's populated/excluded components." },
     { "name": "schematic_review", "description": "Start a structured 3-phase schematic review: power integrity, signal integrity, and BOM/variant sanity. Automatically triggered when the user asks Claude to review the schematic." },
     { "name": "brainstorm_circuits", "description": "Start a structured 5-phase circuit brainstorming session: requirements, topology options, component selection, tradeoffs, and next steps. Automatically triggered when the user asks Claude to brainstorm a circuit." },
-    { "name": "package_for_xfn", "description": "Export the current schematic project to a portable SQLite .db snapshot that cross-functional team members (firmware, mechanical, test, reliability) can query with pcb-copilot. Only call when the user explicitly asks to package or export the project for sharing." }
+    { "name": "package_for_xfn", "description": "Export the current schematic project to a portable SQLite .db snapshot that cross-functional team members (firmware, mechanical, test, reliability) can query with pcb-copilot. Only call when the user explicitly asks to package or export the project for sharing." },
+    { "name": "get_board_info", "description": "Return the saved PCB document's board extents, coordinate origin, copper stackup, object counts, parser warnings, and PCB/netlist timestamps. Call this first for layout questions and warn when PCB and schematic freshness differ." },
+    { "name": "get_net_pcb", "description": "Return physical routing for an exact PCB net, including per-layer length and width, vias, pad endpoints, polygon outlines, bounding box, and active-variant DNP annotations. A regex may be used to discover multiple net names." },
+    { "name": "get_net_neighbors", "description": "Find same-layer copper within a distance of a PCB net and nets overlapping its route on adjacent copper layers. Results are geometric facts, not a crosstalk severity judgment; polygon overlap uses saved nominal outlines." },
+    { "name": "query_pcb_region", "description": "Return nearby PCB nets, components, and saved nominal polygon outlines around a coordinate, optionally on one copper layer. Repour polygons and save before relying on polygon results." },
+    { "name": "get_component_placement", "description": "Return one or more physical PCB instances for a reference designator, including coordinates, side, rotation, bounds, pad nets, nearby components, channel mapping, and active-variant DNP annotations." }
   ],
   "compatibility": {
     "claude_desktop": ">=1.0.0",
