@@ -667,14 +667,17 @@ def _get_component_impl(netlist: dict, variant_state: VariantState, refdes: str)
         "value": comp.get("value"),
         "dnp": variant_state.is_dnp(matched),
         "sheet": comp.get("sheet"),
+        "parameters": comp.get("parameters", {}),
         "pins": comp.get("pins", {}),
     }, indent=2)
 
 
 @mcp.tool(title="Get Component", annotations=ToolAnnotations(readOnlyHint=True))
 def get_component(refdes: str) -> str:
-    """Get full detail for one component: MPN, value, DNP status, and every pin with its net.
-    Use this to drill into a specific component and trace its connections."""
+    """Get full detail for one component: MPN, value, DNP status, every schematic
+    parameter (tolerance, voltage rating, manufacturer, footprint, etc.), and every
+    pin with its net. Use this to drill into a specific component and trace its
+    connections."""
     try:
         _, netlist, variant_state = _require_project()
     except ValueError as e:

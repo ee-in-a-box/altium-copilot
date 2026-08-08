@@ -15,6 +15,7 @@ class ComponentMeta:
     value: str | None = None
     unique_id: str = ""
     pins: dict[str, str] = field(default_factory=dict)  # pin_number -> pin_name
+    parameters: dict[str, str] = field(default_factory=dict)  # param name -> text
 
 
 def parse_sch_doc(path: str) -> dict[str, ComponentMeta]:
@@ -164,6 +165,11 @@ def _handle_parameter(
     if key not in components_by_owner:
         return
     comp = components_by_owner[key]
+
+    # Retain every named parameter so consumers can read the full set, not just
+    # the curated fields (value/mpn) promoted below.
+    if name:
+        comp.parameters[name] = text
 
     if name == "Value":
         comp.value = text
