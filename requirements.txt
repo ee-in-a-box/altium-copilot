@@ -1,5 +1,7 @@
-# MCP server framework (official SDK — FastMCP class is included)
-mcp>=1.0.0
+# MCP server framework (official SDK — FastMCP class is included).
+# Pinned below 2.0: the 2.x line dropped mcp.server.fastmcp / mcp.types.ToolAnnotations,
+# which main.py imports. Bump the ceiling only after porting to the new API.
+mcp>=1.0.0,<2.0.0
 
 # Altium .SchDoc parser — OLE2 compound document format
 olefile>=0.47
