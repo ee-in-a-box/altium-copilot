@@ -6,6 +6,9 @@ mcp>=1.0.0,<2.0.0
 # Altium .SchDoc parser — OLE2 compound document format
 olefile>=0.47
 
+# HTTP client — used only for the best-effort GitHub release update check.
+httpx>=0.27
+
 # No other runtime dependencies — Altium interaction is done via PowerShell subprocesses.
 # All PowerShell scripts live in server/scripts/*.ps1
 
