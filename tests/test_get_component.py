@@ -53,3 +53,34 @@ def test_get_component_includes_sheet(sample_netlist, default_vs):
 def test_get_component_sheet_u1(sample_netlist, default_vs):
     result = json.loads(_get_component_impl(sample_netlist, default_vs, "U1"))
     assert result["sheet"] == "MCU"
+
+
+def test_get_component_includes_all_parameters(sample_netlist, default_vs):
+    resistor = json.loads(_get_component_impl(sample_netlist, default_vs, "R45"))
+    assert resistor["parameters"] == {
+        "Value": "10K",
+        "Tolerance": "1%",
+        "Power Dissipation": "62.5mW",
+        "Temperature Coefficient": "100ppm/C",
+        "Temperature": "155°C",
+        "Voltage": "50V",
+        "Manufacturer": "Yageo",
+        "Footprint": "0402",
+    }
+
+    capacitor = json.loads(_get_component_impl(sample_netlist, default_vs, "C1"))
+    assert capacitor["parameters"] == {
+        "Value": "2.2uF",
+        "Tolerance": "20%",
+        "ESR": "0R005",
+        "Dielectric": "X5R",
+        "Voltage": "16V",
+        "Manufacturer": "Murata",
+        "Footprint": "0402",
+    }
+
+
+def test_get_component_parameters_default_empty(sample_netlist, default_vs):
+    # Components without a parameters key still return an empty dict, not an error.
+    result = json.loads(_get_component_impl(sample_netlist, default_vs, "U1"))
+    assert result["parameters"] == {}

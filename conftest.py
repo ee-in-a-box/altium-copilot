@@ -42,6 +42,16 @@ def sample_netlist():
                 "description": "RES 10K OHM",
                 "value": "10K",
                 "sheet": "Comms",
+                "parameters": {
+                    "Value": "10K",
+                    "Tolerance": "1%",
+                    "Power Dissipation": "62.5mW",
+                    "Temperature Coefficient": "100ppm/C",
+                    "Temperature": "155°C",
+                    "Voltage": "50V",
+                    "Manufacturer": "Yageo",
+                    "Footprint": "0402",
+                },
                 "pins": {
                     "1": {"name": "~", "net": "MCU_UART_TX"},
                     "2": {"name": "~", "net": "USB_UART_RX"},
@@ -59,6 +69,15 @@ def sample_netlist():
                 "description": "CAP 2.2uF 10V",
                 "value": "2.2uF",
                 "sheet": "PowerSupply",
+                "parameters": {
+                    "Value": "2.2uF",
+                    "Tolerance": "20%",
+                    "ESR": "0R005",
+                    "Dielectric": "X5R",
+                    "Voltage": "16V",
+                    "Manufacturer": "Murata",
+                    "Footprint": "0402",
+                },
                 "pins": {
                     "1": {"name": "+", "net": "3V3"},
                     "2": {"name": "-", "net": "GND"},
